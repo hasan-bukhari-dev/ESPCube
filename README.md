@@ -228,8 +228,9 @@ flowchart TB
             direction LR
             HID["Bluetooth HID"]
             BLE["BLE Services"]
-            AUDIO["Speaker Playback / Audio Hardware"]
         end
+
+        AUDIO["Speaker Playback / Audio Hardware"]
 
         TOUCH --> FW
         BUTTONS --> FW
