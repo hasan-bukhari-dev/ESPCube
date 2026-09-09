@@ -24,9 +24,11 @@ EXPECTED_SPEAKER_NORMALIZED='f845ca845762ff789c88c3a958aad88ac9c35ef803548c37eea
 checks=[]
 def add(name, ok, detail=''):
     checks.append((name, bool(ok), detail))
-    print(('PASS' if ok else 'FAIL') + ': ' + name + (f' — {detail}' if detail else ''))
+    print(('PASS' if ok else 'FAIL') + ': ' + name + (f' â€” {detail}' if detail else ''))
 
-def sha_bytes(p): return hashlib.sha256(p.read_bytes()).hexdigest()
+def sha_bytes(p):
+    data = p.read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(data).hexdigest()
 def sha_text(s): return hashlib.sha256(s.strip().encode()).hexdigest()
 
 for rel, expected in EXPECTED_HASHES.items():
