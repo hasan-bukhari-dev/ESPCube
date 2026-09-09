@@ -1,0 +1,6 @@
+{
+  "name": "ESPCubeSpeech",
+  "version": "0.7.4",
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}

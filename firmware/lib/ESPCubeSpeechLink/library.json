@@ -1,0 +1,7 @@
+{
+    "name": "ESPCubeSpeechLink",
+    "version": "0.8.0",
+    "description": "ESPCube Speech Protocol v1 BLE transport",
+    "frameworks": "arduino",
+    "platforms": "espressif32"
+}

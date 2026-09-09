@@ -1,0 +1,8 @@
+{
+  "name": "ESPCubeSpeakerPcmRingBuffer",
+  "version": "0.1.0",
+  "description": "PSRAM-backed byte ring buffer for ESPCube speaker PCM streaming",
+  "build": {
+    "srcDir": "src"
+  }
+}

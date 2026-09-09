@@ -1,0 +1,26 @@
+[package]
+name = "espcube-companion"
+version = "1.0.0-rc.1"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+btleplug = "0.12"
+cpal = "0.16"
+eframe = "0.31.1"
+futures = "0.3"
+parking_lot = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+uuid = "1"
+whisper-rs = "0.16.0"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

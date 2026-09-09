@@ -1,0 +1,7 @@
+{
+  "name": "ESPCubeSpeakerVolume",
+  "version": "0.2.1",
+  "description": "Safe attenuation-only ESPCube Speaker Profile volume control with begin() and click-free chunk ramp",
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}

@@ -1,0 +1,39 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Rust
+target/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Debug / generated
+*.log
+*.wav
+*.tmp
+*.bak
+*.pre-*
+recordings/
+
+# Release binaries are attached to GitHub Releases, not committed here
+*.exe
+*.elf
+*.map
+firmware.bin
+firmware.factory.bin
+bootloader.bin
+partitions.bin
+
+# Local secrets / settings
+trusted_wifi.json
+companion.json
+.env
+
+release-assets/
+companion/installer/release/
+companion/installer/output/

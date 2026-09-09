@@ -1,0 +1,6 @@
+{
+  "name": "ESPCubeHID",
+  "version": "0.7.0",
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}
