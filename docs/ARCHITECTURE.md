@@ -18,551 +18,75 @@ The boundary is designed so basic host control remains standard while higher-lev
 ```mermaid
 flowchart TB
 
-%% ============================================================
-%% ESPCUBE v1.0.0 — MASTER SYSTEM ARCHITECTURE
-%% Textbook view: hardware → firmware → transports → Companion
-%% → user-visible outputs, lifecycle, and recovery.
-%% ============================================================
-
-
-%% ============================================================
-%% 1. ESPCUBE — PHYSICAL HARDWARE
-%% ============================================================
-
-subgraph DEVICE["1 · ESPCube — Physical Hardware"]
-    direction TB
-
-    subgraph DEVICE_INPUTS["Human + Sensor Inputs"]
-        direction LR
-
-        TOUCH["CST816S<br/>Capacitive Touch"]
-        BUTTONS["Physical Buttons<br/>A · B · C"]
-        IMU["QMI8658<br/>6-axis IMU"]
-        MICS["Dual Microphones"]
-    end
-
-    subgraph DEVICE_CHIPS["Hardware Interfaces"]
-        direction LR
-
-        DISPLAY["ST7789<br/>240 × 240 Display"]
-        ES7210["ES7210<br/>Microphone ADC"]
-        ESP32["ESP32-S3R8<br/>Firmware Execution"]
-        PSRAM[("8 MB PSRAM")]
-    end
-
-    MICS -->|"analog microphone signal"| ES7210
-    ESP32 --- PSRAM
-end
-
-
-%% ============================================================
-%% 2. ESPCUBE — FIRMWARE / PROFILE RUNTIME
-%% ============================================================
-
-subgraph FIRMWARE["2 · ESPCube — Firmware / Profile Runtime"]
-    direction TB
-
-    subgraph CORE["Core Product Runtime"]
-        direction LR
-
-        LAUNCHER["Launcher /<br/>Profile Manager"]
-        INPUT["Input Handling"]
-        SETTINGS["Settings /<br/>Calibration"]
-        HOME["A + C<br/>HOME Recovery"]
-        UI["Display /<br/>Profile UI"]
-    end
-
-    subgraph PROFILES["Profile Logic"]
-        direction LR
-
-        MOUSE["Mouse Profile<br/>Gyro + Buttons"]
-        TEXT["Text Profile<br/>Touch + Speech"]
-        SPEAKER_PROFILE["Speaker Profile<br/>Session Lifecycle"]
-    end
-
-    subgraph DEVICE_SERVICES["Device Services"]
-        direction LR
-
-        HID["Bluetooth HID<br/>Service"]
-
-        SPEECH_CAPTURE["Speech Capture<br/>PCM acquisition"]
-
-        ADPCM["IMA ADPCM<br/>Encode + Packetize"]
-
-        SPEECH_GATT["Speech BLE Service<br/>CONTROL · STATUS · AUDIO"]
-
-        SPEAKER_GATT["Speaker BLE Service<br/>COMMAND · STATUS"]
-
-        TCP_RX["Speaker TCP Server<br/>Port 47821"]
-    end
-
-    TOUCH --> INPUT
-    BUTTONS --> INPUT
-    IMU --> INPUT
-
-    INPUT --> LAUNCHER
-    INPUT --> MOUSE
-    INPUT --> TEXT
-    INPUT --> SPEAKER_PROFILE
-
-    BUTTONS --> HOME
-    HOME -->|"always recover"| LAUNCHER
-
-    SETTINGS --> LAUNCHER
-    LAUNCHER --> UI
-    UI --> DISPLAY
-
-    MOUSE --> HID
-
-    TEXT --> SPEECH_CAPTURE
-    ES7210 -->|"I²S microphone data"| SPEECH_CAPTURE
-    SPEECH_CAPTURE --> ADPCM
-    ADPCM --> SPEECH_GATT
-
-    SPEAKER_PROFILE --> SPEAKER_GATT
-    SPEAKER_PROFILE --> TCP_RX
-end
-
-
-%% ============================================================
-%% 3. DEVICE / HOST TRANSPORT BOUNDARY
-%% ============================================================
-
-subgraph TRANSPORT["3 · Device ↔ Host Transport Boundary"]
-    direction LR
-
-    HID_LINK["Bluetooth HID<br/>Standard controls"]
-
-    BLE_CONTROL["Bluetooth LE<br/>Presence + Control Plane"]
-
-    BLE_SPEECH["BLE Speech Stream<br/>IMA ADPCM Notifications"]
-
-    WIFI_PROVISION["BLE Wi-Fi Coordination<br/>SSID · Password · Status"]
-
-    TCP_LINK["Local Wi-Fi / TCP<br/>32 kHz Mono PCM16<br/>Port 47821"]
-end
-
-HID --> HID_LINK
-
-SPEECH_GATT -->|"START / END + status"| BLE_CONTROL
-SPEECH_GATT -->|"compressed speech frames"| BLE_SPEECH
-
-SPEAKER_GATT ---|"Speaker readiness / status"| BLE_CONTROL
-SPEAKER_GATT ---|"wifi_set / wifi_connect"| WIFI_PROVISION
-
-TCP_LINK -->|"Speaker PCM stream"| TCP_RX
-
-
-%% ============================================================
-%% 4. WINDOWS HOST + NATIVE COMPANION
-%% ============================================================
-
-subgraph WINDOWS_PC["4 · Windows PC"]
-    direction TB
-
-    subgraph HOST_OS["Windows Host"]
-        direction LR
-
-        WINDOWS["Windows"]
-        BT_STACK["Windows Bluetooth Stack"]
-        ACTIVE_APP["Focused Windows<br/>Application"]
-        AUDIO_ENDPOINT["Default Windows<br/>Audio Output"]
-        WLAN["Current Windows<br/>Wi-Fi Network"]
-    end
-
-
-    subgraph COMPANION["ESPCube Companion — Native Rust Application"]
+    subgraph DEVICE["1 · ESPCube Device"]
         direction TB
 
-        subgraph COMP_CORE["Companion Core"]
-            direction LR
+        INPUTS["Inputs<br/>Touch · Buttons · IMU · Microphones"]
 
-            UI_APP["egui / eframe UI"]
-            SETTINGS_PC["Persistent Settings"]
-            AUTOSTART["Start Quietly<br/>with Windows"]
-            SINGLE["Single Instance<br/>localhost :47823"]
-        end
+        RUNTIME["Firmware / Profile Runtime<br/>Launcher · Mouse · Text · Speaker · Settings · HOME"]
 
-        subgraph BLE_RUNTIME["BLE Runtime"]
-            direction LR
+        SERVICES["Device Services<br/>Bluetooth HID · BLE GATT · Speech Capture · Speaker Control"]
 
-            BLE_MANAGER["Unified BLE<br/>Session Manager"]
+        PLAYBACK["Speaker Playback<br/>TCP Receiver · PSRAM Ring Buffer · I²S · ES8311 · NS4150B"]
 
-            PRESENCE["Presence /<br/>Reconnect Manager"]
-
-            SPEECH_COORD["Speech<br/>Coordinator"]
-
-            SPEAKER_COORD["Speaker<br/>Coordinator"]
-        end
-
-        subgraph SPEECH_PC["Speech Processing"]
-            direction TB
-
-            subgraph SPEECH_ORDER["BLE Ordering Protection"]
-                direction LR
-
-                PRESTART["Pre-START<br/>Audio Staging"]
-                PENDING_END["Deferred END<br/>800 ms Drain"]
-            end
-
-            SESSION["SpeechSession"]
-
-            subgraph SPEECH_CHECKS["Transport Validation"]
-                direction LR
-
-                SEQ["Sequence-Gap<br/>Tracking"]
-                FRAMES["Frame-Count<br/>Parity"]
-                SAMPLES["Sample-Count<br/>Parity"]
-                INVALID["Invalid Packet<br/>Accounting"]
-                NOTIFY["Firmware Notify<br/>Failure Check"]
-            end
-
-            DECODE["IMA ADPCM<br/>Decode"]
-
-            PCM16["16 kHz PCM16<br/>Utterance Buffer"]
-
-            PARITY{"Transport<br/>Clean?"}
-
-            WHISPER["Persistent<br/>WhisperContext"]
-
-            INFERENCE["Local Whisper Inference<br/>English · Greedy · 8 Threads"]
-
-            TRANSCRIPT["Recognized<br/>Transcript"]
-
-            TRAILING["Trailing-Space<br/>Product Contract"]
-
-            SENDINPUT["Win32 Unicode<br/>SendInput"]
-        end
-
-
-        subgraph SPEAKER_PC["Speaker Processing"]
-            direction TB
-
-            WIFI_TRUST["Trusted Wi-Fi Handler<br/>Current Windows SSID"]
-
-            WIFI_STATE{"Cube Wi-Fi<br/>State?"}
-
-            WIFI_REUSE["Reuse Existing<br/>CONNECTED IP"]
-
-            WIFI_CONNECT["Connect Previously<br/>CONFIGURED Network"]
-
-            WIFI_SET["Provision Trusted Network<br/>over BLE"]
-
-            WAIT_IP["Wait for Cube<br/>CONNECTED + IP"]
-
-            TCP_CONNECT["TCP Connect<br/>:47821<br/>TCP_NODELAY"]
-
-            LOOPBACK["Windows System<br/>Loopback Capture"]
-
-            AUDIO_QUEUE["Bounded Audio Queue<br/>AudioMessage Blocks"]
-
-            MONO["Convert Captured Audio<br/>to Mono f32"]
-
-            DSP["SpeakerDsp<br/>Resampling / Processing"]
-
-            PCM_PENDING["Pending PCM16<br/>Sample Buffer"]
-
-            CHUNK["320 Samples<br/>640 Bytes · 10 ms"]
-
-            TCP_WRITE["TcpStream<br/>write_all()"]
-        end
+        INPUTS --> RUNTIME
+        RUNTIME --> SERVICES
+        RUNTIME --> PLAYBACK
     end
-end
 
 
-%% ============================================================
-%% 5. DIRECT HID PATH
-%% ============================================================
+    subgraph TRANSPORT["2 · Transport Layer"]
+        direction LR
 
-HID_LINK -->|"mouse / clicks / standard HID"| BT_STACK
-BT_STACK --> WINDOWS
+        HID["Bluetooth HID<br/>Standard controls"]
 
+        BLE["Bluetooth LE<br/>Presence · Speech · Speaker control"]
 
-%% ============================================================
-%% 6. BLE COMPANION CONNECTION
-%% ============================================================
+        TCP["Wi-Fi / TCP :47821<br/>32 kHz mono PCM16"]
+    end
 
-BLE_CONTROL --> BT_STACK
-BLE_SPEECH --> BT_STACK
-WIFI_PROVISION --- BT_STACK
 
-BT_STACK --> BLE_MANAGER
+    subgraph PC["3 · Windows PC"]
+        direction TB
 
-BLE_MANAGER --> PRESENCE
-BLE_MANAGER --> SPEECH_COORD
-BLE_MANAGER --> SPEAKER_COORD
+        COMP["ESPCube Companion<br/>Native Rust"]
 
+        SPEECH["Speech Pipeline<br/>BLE ordering · ADPCM decode · parity · Whisper · SendInput"]
 
-%% ============================================================
-%% 7. SPEECH DATA PATH
-%% ============================================================
+        SPEAKER["Speaker Pipeline<br/>Loopback · DSP · Wi-Fi trust · TCP streaming · recovery"]
 
-BLE_SPEECH -->|"AUDIO notifications"| SPEECH_COORD
-BLE_CONTROL -->|"START / END"| SPEECH_COORD
+        LIFE["Lifecycle<br/>Dormant · Activating · Ready · Grace"]
 
-SPEECH_COORD --> PRESTART
-SPEECH_COORD --> PENDING_END
+        COMP --> SPEECH
+        COMP --> SPEAKER
+        COMP --> LIFE
+    end
 
-PRESTART --> SESSION
-PENDING_END --> SESSION
 
-SESSION --> SEQ
-SESSION --> FRAMES
-SESSION --> SAMPLES
-SESSION --> INVALID
-SESSION --> NOTIFY
+    subgraph OUTPUTS["4 · User-Visible Results"]
+        direction LR
 
-SESSION --> DECODE
-DECODE --> PCM16
+        WINDOWS["Windows Controls"]
+        TEXT["Text in Focused Application"]
+        SOUND["Audio from ESPCube Speaker"]
+    end
 
-SEQ --> PARITY
-FRAMES --> PARITY
-SAMPLES --> PARITY
-INVALID --> PARITY
-NOTIFY --> PARITY
-PCM16 --> PARITY
 
-PARITY -->|"yes"| WHISPER
-PARITY -->|"no · reject utterance"| SPEECH_COORD
+    SERVICES --> HID
+    SERVICES --> BLE
+    PLAYBACK --- TCP
 
-WHISPER --> INFERENCE
-PCM16 --> INFERENCE
+    HID --> WINDOWS
 
-INFERENCE --> TRANSCRIPT
-TRANSCRIPT --> TRAILING
-TRAILING --> SENDINPUT
-SENDINPUT -->|"native Unicode keyboard events"| ACTIVE_APP
+    BLE --> COMP
 
+    SPEECH --> TEXT
 
-%% ============================================================
-%% 8. SPEAKER CONTROL PLANE
-%% ============================================================
+    SPEAKER --> TCP
 
-SPEAKER_COORD -->|"Speaker GATT state = READY"| WIFI_TRUST
+    TCP --> PLAYBACK
 
-WLAN -->|"current SSID"| WIFI_TRUST
-
-WIFI_TRUST --> WIFI_STATE
-
-WIFI_STATE -->|"CONNECTED"| WIFI_REUSE
-WIFI_STATE -->|"CONFIGURED"| WIFI_CONNECT
-WIFI_STATE -->|"not configured"| WIFI_SET
-
-WIFI_SET ---|"wifi_set via BLE"| WIFI_PROVISION
-WIFI_CONNECT ---|"wifi_connect via BLE"| WIFI_PROVISION
-
-WIFI_REUSE --> WAIT_IP
-WIFI_CONNECT --> WAIT_IP
-WIFI_SET --> WAIT_IP
-
-WAIT_IP --> TCP_CONNECT
-
-
-%% ============================================================
-%% 9. SPEAKER AUDIO DATA PLANE
-%% ============================================================
-
-AUDIO_ENDPOINT -->|"system output"| LOOPBACK
-
-LOOPBACK --> AUDIO_QUEUE
-AUDIO_QUEUE --> MONO
-MONO --> DSP
-
-DSP -->|"32 kHz output"| PCM_PENDING
-
-PCM_PENDING -->|"when ≥ 320 samples"| CHUNK
-CHUNK --> TCP_WRITE
-
-TCP_CONNECT --> TCP_WRITE
-
-TCP_WRITE -->|"640-byte PCM16 chunks"| TCP_LINK
-
-
-%% ============================================================
-%% 10. ESPCUBE SPEAKER PLAYBACK
-%% ============================================================
-
-subgraph DEVICE_PLAYBACK["5 · ESPCube — Speaker Playback Path"]
-    direction TB
-
-    RING[("PSRAM PCM Ring Buffer<br/>128 KiB")]
-
-    PREBUFFER["Playback Prebuffer<br/>12 × 10 ms = 120 ms"]
-
-    BUFFER_STATE["Ring State<br/>head · tail · occupancy<br/>high-water mark"]
-
-    PLAYBACK["PCM Playback Engine"]
-
-    I2S["I²S Output<br/>32 kHz Mono PCM16"]
-
-    ES8311["ES8311<br/>Audio Codec"]
-
-    VOLUME["Digital / Codec<br/>Volume Control"]
-
-    AMP["NS4150B<br/>Power Amplifier"]
-
-    PHYSICAL_SPK["Physical Speaker"]
-
-    TCP_RX -->|"incoming PCM bytes"| RING
-
-    RING --> BUFFER_STATE
-    RING --> PREBUFFER
-
-    PREBUFFER -->|"enough buffered audio"| PLAYBACK
-    RING --> PLAYBACK
-
-    PLAYBACK --> I2S
-    I2S --> ES8311
-    ES8311 --> VOLUME
-    VOLUME --> AMP
-    AMP --> PHYSICAL_SPK
-end
-
-
-%% ============================================================
-%% 11. COMPANION PRESENCE LIFECYCLE
-%% ============================================================
-
-subgraph LIFECYCLE["6 · Companion Presence Lifecycle"]
-    direction LR
-
-    DORMANT["Dormant<br/>Cube absent<br/>Whisper unloaded"]
-
-    ACTIVATING["Activating<br/>Device setup"]
-
-    READY["Ready<br/>BLE services available<br/>Whisper kept loaded"]
-
-    GRACE["Grace<br/>Reconnect scanning<br/>Whisper stays warm"]
-
-    DORMANT -->|"ESPCube discovered"| ACTIVATING
-    ACTIVATING -->|"services resolved"| READY
-    READY -->|"BLE disconnect"| GRACE
-    GRACE -->|"reconnect before deadline"| READY
-    GRACE -->|"grace expires"| DORMANT
-end
-
-PRESENCE -.->|"updates"| DORMANT
-PRESENCE -.-> ACTIVATING
-PRESENCE -.-> READY
-PRESENCE -.-> GRACE
-
-
-%% ============================================================
-%% 12. DESKTOP / UI LIFECYCLE
-%% ============================================================
-
-subgraph DESKTOP_LIFE["7 · Companion Desktop Behavior"]
-    direction LR
-
-    LOGIN["Windows Login"]
-    BG["Background Start<br/>--background"]
-    HIDDEN["Window Hidden<br/>Process Still Running"]
-    SHOW["Show on Connect<br/>Visible + Focus"]
-    CLOSE["X Button<br/>Hide, Do Not Quit"]
-
-    LOGIN --> AUTOSTART
-    AUTOSTART --> BG
-    BG --> HIDDEN
-
-    READY -.->|"new connection generation"| SHOW
-    SHOW --> UI_APP
-
-    UI_APP --> CLOSE
-    CLOSE --> HIDDEN
-
-    SINGLE -.->|"SHOW request"| SHOW
-end
-
-
-%% ============================================================
-%% 13. SPEAKER RECOVERY PATHS
-%% ============================================================
-
-subgraph RECOVERY["8 · Speaker Failure Recovery"]
-    direction TB
-
-    STREAMING["Normal Speaker Streaming"]
-
-    FAILURE{"What changed?"}
-
-    ENDPOINT_FAIL["Windows Audio<br/>Endpoint Changed"]
-
-    TCP_FAIL["TCP Write Failed"]
-
-    DROP_CAPTURE["Drop Old Capture<br/>Drain Queue"]
-
-    RESTART_CAPTURE["Restart Loopback<br/>on New Default Endpoint"]
-
-    REBUILD_DSP["Rebuild DSP<br/>for New Sample Rate"]
-
-    CHECK_READY{"Speaker GATT<br/>Still READY?"}
-
-    CHECK_WIFI{"Cube Wi-Fi<br/>Still CONNECTED?"}
-
-    REUSE_IP["Reuse Current IP"]
-
-    REPROVISION["BLE Re-provision /<br/>Reconnect Wi-Fi"]
-
-    RETRY_TCP["Reconnect TCP :47821"]
-
-    CLEAR_STALE["Clear Pending PCM<br/>Drain Old Audio Queue"]
-
-    RESUME["Resume Streaming"]
-
-    STREAMING --> FAILURE
-
-    FAILURE -->|"audio endpoint"| ENDPOINT_FAIL
-    FAILURE -->|"TCP write"| TCP_FAIL
-
-    ENDPOINT_FAIL --> DROP_CAPTURE
-    DROP_CAPTURE --> RESTART_CAPTURE
-    RESTART_CAPTURE --> REBUILD_DSP
-    REBUILD_DSP --> RESUME
-
-    TCP_FAIL --> CHECK_READY
-
-    CHECK_READY -->|"no"| STOP_STREAM["Stop Speaker Worker"]
-    CHECK_READY -->|"yes"| CHECK_WIFI
-
-    CHECK_WIFI -->|"yes"| REUSE_IP
-    CHECK_WIFI -->|"no"| REPROVISION
-
-    REUSE_IP --> RETRY_TCP
-    REPROVISION --> RETRY_TCP
-
-    RETRY_TCP --> CLEAR_STALE
-    CLEAR_STALE --> REBUILD_DSP
-end
-
-LOOPBACK -.->|"endpoint error"| ENDPOINT_FAIL
-TCP_WRITE -.->|"write failure"| TCP_FAIL
-
-
-%% ============================================================
-%% 14. PRODUCT SAFETY / PROFILE OWNERSHIP
-%% ============================================================
-
-subgraph SAFETY["9 · Product Safety + Resource Ownership"]
-    direction LR
-
-    PROFILE_EXIT["Profile Exit"]
-
-    RELEASE_HID["Release Held<br/>HID State"]
-
-    STOP_TEMP["Stop Temporary<br/>Audio / Network State"]
-
-    RETURN_HOME["Return to<br/>Launcher"]
-
-    WIFI_DEFAULT["Wi-Fi Off by Default<br/>except Speaker"]
-
-    PROFILE_EXIT --> RELEASE_HID
-    PROFILE_EXIT --> STOP_TEMP
-    PROFILE_EXIT --> RETURN_HOME
-
-    HOME --> RETURN_HOME
-
-    SPEAKER_PROFILE -.-> WIFI_DEFAULT
-end
+    PLAYBACK --> SOUND
 ```
 
 ---
