@@ -125,12 +125,17 @@ The default disconnect grace is three minutes.
 ## Mouse
 
 1. Open **Mouse** on ESPCube.
-2. Move the device.
-3. Confirm the Windows pointer moves.
-4. Test the physical click controls.
-5. Hold **A + C** to return HOME.
+2. Move the device and confirm the Windows pointer moves.
+3. Press **A** and confirm left click.
+4. Tap **B** and confirm middle click.
+5. Hold **B** while moving the Cube and confirm gyro scrolling.
+6. Press **C** and confirm right click.
+7. Select some text and press **A + B** to Copy.
+8. Press **B + C** to Paste.
+9. Hold either shortcut and confirm it fires only once.
+10. Hold **A + C** to return HOME.
 
-If Mouse works, the standard HID path is working.
+If these work, the standard HID path and Mouse shortcut routing are working.
 
 ---
 

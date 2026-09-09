@@ -36,7 +36,7 @@ The v1.0.0 baseline includes:
 
 | Profile | What it does | Transport | Companion? |
 |---|---|---|---:|
-| **Mouse** | Gyro pointer + physical click controls | Bluetooth HID | No |
+| **Mouse** | Gyro pointer + physical click, copy, and paste controls | Bluetooth HID | No |
 | **Text** | Touch interaction + local speech-to-text | BLE + native Windows input | For speech |
 | **Speaker** | Mirrors Windows system audio to ESPCube | BLE control + Wi-Fi/TCP audio | Yes |
 | **Settings** | Device and Companion configuration | Local / BLE as applicable | No for device settings |
@@ -91,7 +91,11 @@ The point is not complexity for its own sake. Each subsystem exists because a pa
 The Mouse profile turns ESPCube into a compact motion controller.
 
 - gyro-driven pointer movement
-- physical click controls
+- physical left, middle, and right click controls
+- hold B + gyro for scrolling
+- A + B for Copy (`Ctrl+C`)
+- B + C for Paste (`Ctrl+V`)
+- A + C hold for profile-independent HOME
 - touchscreen profile interaction
 - direct standard Bluetooth HID
 - no Companion required for ordinary mouse use

@@ -1069,6 +1069,23 @@ void ProfileManager::updateButtons()
     }
 
     // ========================================================
+    // MOUSE COPY / PASTE CHORDS
+    // ========================================================
+
+    if (
+        profiles.screen == UIScreen::MOUSE &&
+        profiles.profile == Profile::MOUSE
+    )
+    {
+        mouseProfile.updateChords(
+            leftState == LOW,
+            middleState == LOW,
+            rightState == LOW,
+            now
+        );
+    }
+
+    // ========================================================
     // A
     // ========================================================
 
@@ -1112,7 +1129,7 @@ void ProfileManager::updateButtons()
                 Profile::MOUSE
             )
             {
-                mouseProfile.handleButtonA(pressed);
+                mouseProfile.handleButtonA(pressed, now);
             }
         }
     }
@@ -1455,7 +1472,7 @@ void ProfileManager::updateButtons()
                 Profile::MOUSE
             )
             {
-                mouseProfile.handleButtonC(pressed);
+                mouseProfile.handleButtonC(pressed, now);
             }
         }
     }
