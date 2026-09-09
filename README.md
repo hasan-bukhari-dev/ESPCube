@@ -209,21 +209,27 @@ Device-side Settings cover hardware/profile behavior such as motion configuratio
 ESPCube is both an embedded device and a native desktop application.
 
 ```mermaid
-flowchart LR
+flowchart TB
 
     subgraph CUBE["ESPCube"]
         direction TB
 
-        TOUCH["CST816S Touch"]
-        BUTTONS["Physical Buttons"]
-        IMU["QMI8658 IMU"]
-        MICS["Dual Microphones"]
+        subgraph INPUTS["Inputs"]
+            direction LR
+            TOUCH["CST816S Touch"]
+            BUTTONS["Physical Buttons"]
+            IMU["QMI8658 IMU"]
+            MICS["Dual Microphones"]
+        end
 
         FW["Firmware / Profile Runtime"]
 
-        HID["Bluetooth HID"]
-        BLE["BLE Services"]
-        AUDIO["Speaker Playback / Audio Hardware"]
+        subgraph SERVICES["Device Services"]
+            direction LR
+            HID["Bluetooth HID"]
+            BLE["BLE Services"]
+            AUDIO["Speaker Playback / Audio Hardware"]
+        end
 
         TOUCH --> FW
         BUTTONS --> FW
@@ -242,10 +248,13 @@ flowchart LR
         WINDOWS["Windows"]
         COMP["ESPCube Companion"]
 
-        WHISPER["Persistent Whisper"]
-        INPUT["Native Text Injection"]
-        CAPTURE["System Audio Capture"]
-        TCP["Wi-Fi / TCP Speaker Transport"]
+        subgraph HOST["Companion Services"]
+            direction LR
+            WHISPER["Persistent Whisper"]
+            INPUT["Native Text Injection"]
+            CAPTURE["System Audio Capture"]
+            TCP["Wi-Fi / TCP Speaker Transport"]
+        end
 
         COMP --> WHISPER
         COMP --> INPUT
