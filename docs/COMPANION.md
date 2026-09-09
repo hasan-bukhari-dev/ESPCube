@@ -148,7 +148,7 @@ The default Companion configuration is:
 | Setting | Default |
 |---|---:|
 | Show when ESPCube connects | `true` |
-| Start with Windows | `true` |
+| Start with Windows | `false` |
 | Disconnect grace | `180 s` |
 | Speech enabled | `true` |
 | Speaker enabled | `true` |
@@ -416,7 +416,9 @@ When a new BLE connection generation is observed and the setting is enabled:
 
 ## X button
 
-Close is canceled and the window is hidden.
+- If **Start quietly with Windows** is off, closing the window exits the Companion.
+- If **Start quietly with Windows** is on, closing the window hides it and leaves the BLE watcher running.
+- **Quit** always exits.
 
 ## Grace expiry
 
@@ -471,3 +473,13 @@ Start-Process "$env:LOCALAPPDATA\Programs\ESPCube Companion\ESPCube Companion.ex
 - [Architecture](ARCHITECTURE.md)
 - [Protocol](PROTOCOL.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
+
+
+# Optional background watcher
+
+The Companion can be used in either of two modes:
+
+1. **Manual mode (default):** Windows startup is off. Open Companion when needed; closing its window exits it.
+2. **Background mode (opt-in):** Enable **Start quietly with Windows (optional)**. The app launches hidden at login, remains resident without loading the heavy speech runtime until ESPCube is present, watches through the existing BLE manager, and can surface the existing window when a connection is established if **Show window when ESPCube connects** is enabled.
+
+The two settings are independent. A user may keep the watcher resident without automatically showing the window, or disable startup entirely and use the app only on demand.

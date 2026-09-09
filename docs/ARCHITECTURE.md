@@ -1,5 +1,40 @@
 # ESPCube Architecture
 
+## Final firmware source architecture
+
+The v1 firmware now uses real compiled C++ ownership modules; the temporary `.inc` migration bridge has been removed completely.
+
+```text
+main.cpp
+   │
+   ▼
+AppRuntime
+   ├── Buttons
+   ├── Touch
+   ├── Motion
+   ├── HomeGesture
+   ├── ProfileManager
+   │    ├── MouseProfile
+   │    ├── TextProfile
+   │    ├── SettingsProfile
+   │    └── SpeakerProfile
+   ├── ScreenRenderer
+   └── SpeakerStream
+        ├── TCP session
+        ├── PSRAM ring buffer
+        └── playback pacing
+```
+
+Key design rules remain unchanged:
+
+- input dispatch is synchronous and allocation-free;
+- HOME is profile-independent;
+- Motion owns the calibrated QMI8658 algorithm and state;
+- Speaker BLE remains the control plane;
+- Speaker TCP remains the high-bandwidth PCM data plane;
+- the Speaker service consumes exactly one 10 ms PCM chunk per runtime service pass;
+- Companion and reusable firmware libraries are unchanged by the architecture migration.
+
 > Engineering architecture for ESPCube v1.0.0.
 
 [← Back to README](../README.md) · [Protocol](PROTOCOL.md) · [Hardware](HARDWARE.md) · [Companion](COMPANION.md)
@@ -59,27 +94,47 @@ The control plane stays on BLE while the high-bandwidth data plane moves to TCP.
 
 # Firmware architecture
 
-The current v1 firmware keeps the proven profile coordinator in:
+The firmware entry point is intentionally tiny:
 
-```text
-firmware/src/main.cpp
+```cpp
+#include "app/AppRuntime.h"
+
+AppRuntime app;
+
+void setup() { app.begin(); }
+void loop() { app.update(); }
 ```
 
-Reusable services live in focused libraries:
+The runtime is split into focused compiled units:
 
 ```text
-firmware/lib/
-├── ESPCubeHID
-├── ESPCubeSpeech
-├── ESPCubeSpeechLink
-├── ESPCubeSpeakerControl
-├── ESPCubeSpeakerPlayback
-├── ESPCubeSpeakerPcmRingBuffer
-├── ESPCubeSpeakerVolume
-└── ESPCubeSpeakerB1Test
+firmware/src/
+├── app/
+│   ├── AppRuntime.*
+│   ├── RuntimeGlobals.*
+│   ├── HomeGesture.*
+│   └── ProfileManager.*
+├── hardware/
+│   ├── BoardConfig.h
+│   └── Display.*
+├── input/
+│   ├── Buttons.*
+│   ├── Touch.*
+│   ├── Motion.*
+├── profiles/
+│   ├── MouseProfile.*
+│   ├── TextProfile.*
+│   ├── SettingsProfile.*
+│   ├── SpeakerProfile.*
+│   └── SpeakerStream.*
+└── ui/
+    ├── Theme.h
+    └── ScreenRenderer.*
 ```
 
-v1 intentionally does not perform a large profile-class rewrite immediately before release. Stable runtime behavior is prioritized over cosmetic abstraction.
+`ProfileManager` owns synchronous profile/screen dispatch. Profile-specific state and actions are assigned to their concrete profile modules. `ScreenRenderer` owns launcher/profile/text/settings rendering. `SpeakerStream` owns the TCP socket/session, PSRAM ring buffer, playback state, and transport metrics.
+
+Reusable services remain in `firmware/lib/` and were not modified by this migration.
 
 ---
 
@@ -495,3 +550,10 @@ See [`DESIGN_PRINCIPLES.md`](DESIGN_PRINCIPLES.md).
 - [Companion](COMPANION.md)
 - [Hardware](HARDWARE.md)
 - [Adding a Profile](ADDING_A_PROFILE.md)
+
+
+## Profile lifecycle and synchronous dispatch
+
+`MouseProfile` and `SpeakerProfile` are the two device-level profiles and implement the lightweight `ProfileLifecycle` interface (`enter()` / `exit()`). `TextProfile` and `SettingsProfile` intentionally remain screen-mode behavior owners rather than values in the device-level `Profile` enum; this preserves the v1 product model in which Text and Settings are UI modes layered on the standard device state.
+
+Input dispatch is deliberately direct, synchronous, allocation-free, and queue-free. The earlier unused `InputEvent` contract was removed rather than introducing an event bus that could change ordering or latency. Physical button, touch, HOME, motion, speech, and Speaker branches therefore retain their established main-loop ordering.

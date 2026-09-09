@@ -114,9 +114,15 @@ impl eframe::App for CompanionApp {
         self.previous_presence = snapshot.presence;
 
         if ctx.input(|input| input.viewport().close_requested()) && !self.allow_close {
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            // Manual-use mode should behave like a normal app: closing the
+            // window exits. When Windows startup is enabled, closing the
+            // window hides it while the BLE watcher remains alive.
+            if self.settings.read().start_with_windows {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            } else {
+                self.allow_close = true;
+            }
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -210,11 +216,23 @@ impl eframe::App for CompanionApp {
 
             let original = current.clone();
 
-            ui.checkbox(&mut current.show_on_connect, "Show when ESPCube connects");
+            ui.checkbox(
+                &mut current.show_on_connect,
+                "Show window when ESPCube connects",
+            );
 
             ui.checkbox(
                 &mut current.start_with_windows,
-                "Start quietly with Windows",
+                "Start quietly with Windows (optional)",
+            );
+
+            ui.label(
+                RichText::new(
+                    "Leave Windows startup off to open the Companion only when you need it. \
+Turn it on to keep a hidden watcher running at login; Show on connect controls whether that watcher surfaces the window when ESPCube appears.",
+                )
+                .small()
+                .color(Color32::from_gray(125)),
             );
 
             ui.checkbox(&mut current.speech_enabled, "Speech typing");

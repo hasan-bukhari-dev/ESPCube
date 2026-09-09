@@ -26,8 +26,5 @@ Source: "release\models\ggml-tiny.en.bin"; DestDir: "{app}\models"; Flags: ignor
 [Icons]
 Name: "{autoprograms}\ESPCube Companion"; Filename: "{app}\{#MyAppExeName}"
 
-[Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "ESPCube Companion"; ValueData: """{app}\{#MyAppExeName}"" --background"; Flags: uninsdeletevalue
-
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch ESPCube Companion"; Flags: nowait postinstall skipifsilent

@@ -18,7 +18,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             show_on_connect: true,
-            start_with_windows: true,
+            start_with_windows: false,
             disconnect_grace_secs: 180,
             speech_enabled: true,
             speaker_enabled: true,

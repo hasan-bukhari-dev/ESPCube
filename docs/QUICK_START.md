@@ -22,8 +22,8 @@ If the Cube is already flashed:
 
 1. Install the Windows Companion.
 2. Pair ESPCube in Windows Bluetooth settings if needed.
-3. Enable **Show when ESPCube connects**.
-4. Enable **Start quietly with Windows**.
+3. Keep **Show when ESPCube connects** enabled if you want the window surfaced on connection.
+4. Leave **Start quietly with Windows** off for manual-only use, or enable it if you want the background watcher.
 5. Turn on ESPCube.
 6. Wait for BLE connection.
 7. Pick a profile.
@@ -46,7 +46,7 @@ The installer:
 - installs under `%LOCALAPPDATA%\Programs\ESPCube Companion`
 - bundles the Whisper model used by v1
 - creates a Start Menu entry
-- registers background startup
+- leaves background startup opt-in through the Companion setting
 - includes uninstall support
 
 Normal users do **not** need Python, `whisper-cli.exe`, Cargo, or a separate model download.
@@ -111,7 +111,7 @@ Open ESPCube Companion and enable:
 
 ```text
 Show when ESPCube connects      ON
-Start quietly with Windows      ON
+Start quietly with Windows      OFF (optional)
 Speech typing                   ON
 Windows Speaker mirror          ON
 ```
@@ -212,9 +212,9 @@ Minimize keeps the window visible on the taskbar.
 
 ## X button
 
-`X` hides the Companion window but leaves the process alive.
-
-This is intentional so speech/Speaker services can remain available in the background.
+- With **Start quietly with Windows** off, `X` exits the Companion.
+- With it on, `X` hides the window and leaves the BLE watcher alive.
+- Use **Quit** to terminate a background instance explicitly.
 
 ## Reopen
 

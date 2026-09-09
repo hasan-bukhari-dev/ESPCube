@@ -58,19 +58,13 @@ A profile must not:
 
 # Where v1 profile code lives
 
-The v1 coordinator is:
+Profile behavior lives under:
 
 ```text
-firmware/src/main.cpp
+firmware/src/profiles/
 ```
 
-Reusable functionality should live in focused libraries under:
-
-```text
-firmware/lib/ESPCube...
-```
-
-This keeps the shipping runtime stable while still allowing services to be factored cleanly.
+`ProfileManager` owns synchronous profile/screen dispatch, while `AppRuntime` owns top-level setup/update ordering. Shared hardware/service functionality remains in focused modules under `firmware/src/` or reusable libraries under `firmware/lib/`.
 
 ---
 
@@ -228,7 +222,7 @@ EXIT
 4. Add a BLE service only if required.
 5. Add Wi-Fi only if required.
 6. Put reusable hardware/service logic in a focused library.
-7. Integrate with the current coordinator.
+7. Integrate with `ProfileManager` and the synchronous input path.
 8. preserve A + C HOME.
 9. test profile entry/exit repeatedly.
 10. regression-test every existing profile.

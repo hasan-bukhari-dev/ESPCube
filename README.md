@@ -195,7 +195,7 @@ This separation keeps normal ESPCube operation Bluetooth-first while giving cont
 The native Companion exposes practical lifecycle controls:
 
 - **Show when ESPCube connects**
-- **Start quietly with Windows**
+- **Start quietly with Windows (optional; off by default)**
 - **Speech typing**
 - **Windows Speaker mirror**
 - configurable disconnect grace period
@@ -445,7 +445,7 @@ The installer:
 - installs per-user
 - bundles the Whisper model
 - creates a Start Menu shortcut
-- registers background startup
+- leaves Windows background startup opt-in through the Companion setting
 - includes uninstall support
 - does not require Python
 
@@ -475,7 +475,7 @@ Settings
 
 ```text
 Show when ESPCube connects      ON
-Start quietly with Windows      ON
+Start quietly with Windows      OFF (enable only if wanted)
 Speech typing                   ON
 Windows Speaker mirror          ON
 ```
@@ -500,12 +500,14 @@ No PowerShell, manual Whisper launch, or development harness should be needed fo
 
 # Companion background behavior
 
-The Companion is designed to remain available quietly.
+Background watching is optional. By default, the Companion behaves like a normal app and only runs when you open it.
 
-- **Start quietly with Windows** launches it in the background.
-- **Show when ESPCube connects** surfaces the UI on a new Ready connection.
+- **Start quietly with Windows (optional)** launches it hidden at login and keeps the BLE watcher resident.
+- **Show when ESPCube connects** can surface and focus the existing background window on a new Ready connection.
 - **Minimize** keeps it on the taskbar.
-- **X** hides the window without terminating the background process.
+- With Windows startup **off**, **X** exits the Companion.
+- With Windows startup **on**, **X** hides the window while the background watcher continues.
+- **Quit** always terminates the process.
 
 ### Reopen manually
 

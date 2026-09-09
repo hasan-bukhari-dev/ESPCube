@@ -54,9 +54,9 @@ Check the Companion setting:
 Start quietly with Windows
 ```
 
-The installer uses the current user's Windows startup registration.
+Windows startup is optional and is controlled by the Companion setting, not forced by the installer.
 
-If the app has been reinstalled, reopen the Companion and verify the setting.
+If the app has been reinstalled, reopen the Companion and enable the setting if you want background startup.
 
 ---
 
