@@ -214,22 +214,16 @@ flowchart LR
     subgraph CUBE["ESPCube"]
         direction TB
 
-        subgraph INPUTS["Inputs"]
-            direction LR
-            TOUCH["CST816S Touch"]
-            BUTTONS["Physical Buttons"]
-            IMU["QMI8658 IMU"]
-            MICS["Dual Microphones"]
-        end
+        TOUCH["CST816S Touch"]
+        BUTTONS["Physical Buttons"]
+        IMU["QMI8658 IMU"]
+        MICS["Dual Microphones"]
 
         FW["Firmware / Profile Runtime"]
 
-        subgraph DEVICE_PATHS["Device Services"]
-            direction LR
-            HID["Bluetooth HID"]
-            BLE["BLE Services"]
-            AUDIO["Speaker Playback / Audio Hardware"]
-        end
+        HID["Bluetooth HID"]
+        BLE["BLE Services"]
+        AUDIO["Speaker Playback / Audio Hardware"]
 
         TOUCH --> FW
         BUTTONS --> FW
@@ -248,25 +242,21 @@ flowchart LR
         WINDOWS["Windows"]
         COMP["ESPCube Companion"]
 
-        subgraph HOST_SERVICES["Companion Services"]
-            direction LR
-            WHISPER["Persistent Whisper"]
-            INPUT["Native Text Injection"]
-            CAPTURE["System Audio Capture"]
-        end
-
-        WIFI["Wi-Fi / TCP Speaker Transport"]
+        WHISPER["Persistent Whisper"]
+        INPUT["Native Text Injection"]
+        CAPTURE["System Audio Capture"]
+        TCP["Wi-Fi / TCP Speaker Transport"]
 
         COMP --> WHISPER
         COMP --> INPUT
         COMP --> CAPTURE
-        CAPTURE --> WIFI
+        CAPTURE --> TCP
     end
 
 
     HID -->|"Standard controls"| WINDOWS
     BLE <-->|"Presence / Speech / Speaker control"| COMP
-    WIFI -->|"Speaker audio"| AUDIO
+    TCP -->|"Speaker audio"| AUDIO
 ```
 
 The architecture intentionally separates:
