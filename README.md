@@ -215,15 +215,17 @@ flowchart TB
         BUTTONS["Physical Buttons"]
         IMU["QMI8658 IMU"]
         MICS["Dual Microphones"]
+
         FW["Firmware / Profile Runtime"]
         HID["Bluetooth HID"]
         BLE["BLE Services"]
-        AUDIO["Audio Hardware"]
+        AUDIO["Speaker Playback / Audio Hardware"]
 
         TOUCH --> FW
         BUTTONS --> FW
         IMU --> FW
         MICS --> FW
+
         FW --> HID
         FW --> BLE
         FW --> AUDIO
@@ -240,12 +242,12 @@ flowchart TB
         COMP --> WHISPER
         COMP --> INPUT
         COMP --> CAPTURE
-        COMP --> WIFI
+        CAPTURE --> WIFI
     end
 
-    HID -->|Standard controls| WINDOWS
-    BLE <-->|Presence / Speech / Speaker control| COMP
-    WIFI -->|Speaker audio| CUBE
+    HID -->|"Standard controls"| WINDOWS
+    BLE <-->|"Presence / Speech / Speaker control"| COMP
+    WIFI -->|"Speaker audio"| AUDIO
 ```
 
 The architecture intentionally separates:
