@@ -107,15 +107,25 @@ ESPCube ── Bluetooth HID ──► Windows
 The Text profile combines touchscreen interaction with local voice transcription.
 
 ```mermaid
-flowchart LR
-    MIC["Dual microphones"] --> ADC["ES7210"]
-    ADC --> ESP["ESP32-S3"]
-    ESP --> ADPCM["IMA ADPCM"]
-    ADPCM --> BLE["BLE"]
-    BLE --> COMP["Windows Companion"]
-    COMP --> WHISPER["Persistent Whisper"]
-    WHISPER --> INPUT["Native SendInput"]
-    INPUT --> APP["Focused app"]
+flowchart TD
+    MIC["Dual microphones"]
+    ADC["ES7210"]
+    ESP["ESP32-S3"]
+    ADPCM["IMA ADPCM"]
+    BLE["Bluetooth LE"]
+    COMP["Windows Companion"]
+    WHISPER["Persistent Whisper"]
+    INPUT["Native SendInput"]
+    APP["Focused application"]
+
+    MIC --> ADC
+    ADC --> ESP
+    ESP --> ADPCM
+    ADPCM --> BLE
+    BLE --> COMP
+    COMP --> WHISPER
+    WHISPER --> INPUT
+    INPUT --> APP
 ```
 
 The production speech path includes:
@@ -144,14 +154,23 @@ ggml-tiny.en.bin
 Speaker turns ESPCube into a local Windows audio endpoint.
 
 ```mermaid
-flowchart LR
-    WIN["Windows system audio"] --> CAP["Loopback capture"]
-    CAP --> DSP["DSP / resampling"]
-    DSP --> TCP["TCP over local Wi-Fi"]
-    TCP --> RB["PSRAM PCM ring buffer"]
-    RB --> CODEC["ES8311"]
-    CODEC --> AMP["NS4150B"]
-    AMP --> SPK["Speaker"]
+flowchart TD
+    WIN["Windows system audio"]
+    CAP["Loopback capture"]
+    DSP["DSP / resampling"]
+    TCP["TCP over local Wi-Fi"]
+    RB["PSRAM PCM ring buffer"]
+    CODEC["ES8311"]
+    AMP["NS4150B"]
+    SPK["Speaker"]
+
+    WIN --> CAP
+    CAP --> DSP
+    DSP --> TCP
+    TCP --> RB
+    RB --> CODEC
+    CODEC --> AMP
+    AMP --> SPK
 ```
 
 ### Speaker design
@@ -244,13 +263,17 @@ For the deeper engineering view, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.
 The desktop runtime models ESPCube presence explicitly:
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Dormant
-    Dormant --> Activating: ESPCube discovered
-    Activating --> Ready: BLE services ready
-    Ready --> Grace: BLE disconnect
-    Grace --> Ready: reconnect before timeout
-    Grace --> Dormant: grace expires
+flowchart TD
+    D["Dormant"]
+    A["Activating"]
+    R["Ready"]
+    G["Grace"]
+
+    D -->|"ESPCube discovered"| A
+    A -->|"BLE services ready"| R
+    R -->|"BLE disconnect"| G
+    G -->|"Reconnect before timeout"| R
+    G -->|"Grace expires"| D
 ```
 
 Why Grace exists:
@@ -549,14 +572,25 @@ Complete guide: [`docs/BUILDING.md`](docs/BUILDING.md)
 ESPCube v1.0.0 was validated from the **public repository**, not from an old local development workspace.
 
 ```mermaid
-flowchart LR
-    GH["Public GitHub"] --> CLONE["Fresh clone"]
-    CLONE --> BUILD["Build"]
-    BUILD --> FLASH["Flash hardware"]
-    FLASH --> INSTALL["Build + install Companion"]
-    INSTALL --> TEST["Physical runtime test"]
-    TEST --> HASH["SHA-256 bundle"]
-    HASH --> RELEASE["GitHub v1.0.0"]
+flowchart TD
+    GH["Public GitHub repository"]
+    CLONE["Fresh clone"]
+    LFS["Git LFS model verification"]
+    BUILD["Firmware + Companion build"]
+    FLASH["Physical ESPCube flash"]
+    INSTALL["Windows installer build + install"]
+    TEST["Physical runtime validation"]
+    HASH["SHA-256 release bundle"]
+    RELEASE["GitHub v1.0.0 release"]
+
+    GH --> CLONE
+    CLONE --> LFS
+    LFS --> BUILD
+    BUILD --> FLASH
+    FLASH --> INSTALL
+    INSTALL --> TEST
+    TEST --> HASH
+    HASH --> RELEASE
 ```
 
 Shipping workflows tested:
