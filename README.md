@@ -4,7 +4,7 @@
 
 ### A universal handheld interface built on the ESP32-S3.
 
-**Motion control. Touch. Local speech. Windows audio. One compact device.**
+**Motion control · Touch · Local speech · Windows audio · One compact device**
 
 [![Release](https://img.shields.io/github/v/release/hasan-bukhari-dev/ESPCube?style=for-the-badge&label=release)](https://github.com/hasan-bukhari-dev/ESPCube/releases/latest)
 ![Hardware](https://img.shields.io/badge/hardware-ESP32--S3-0F766E?style=for-the-badge)
@@ -26,52 +26,80 @@
 
 ---
 
-## What is ESPCube?
+## ESPCube in one minute
 
-**ESPCube is a general-purpose handheld computer interface built around the Waveshare ESP32-S3-Touch-LCD-1.54.**
+**ESPCube is a profile-driven handheld computer interface built around the Waveshare ESP32-S3-Touch-LCD-1.54.**
 
-It combines a 240×240 capacitive touchscreen, a 6-axis IMU, physical buttons, dual microphones, onboard audio hardware, Bluetooth LE, Wi-Fi, 8 MB PSRAM, and 16 MB flash into a profile-driven handheld platform.
+It combines a 240×240 capacitive touchscreen, a 6-axis IMU, physical buttons, dual microphones, onboard audio hardware, Bluetooth LE, Wi-Fi, 8 MB PSRAM, and 16 MB flash into a small device that can behave as more than one kind of controller.
 
-The core idea is simple: **one small device should be able to become many useful interfaces without being locked to one game, one app, or one workflow.**
+The v1.0.0 baseline includes:
 
-ESPCube v1.0.0 currently provides:
+| Profile | What it does | Main transport | Companion needed? |
+|---|---|---|---:|
+| **Mouse** | Gyro pointer + physical click controls | Bluetooth HID | No |
+| **Text** | Touch interaction + local speech-to-text | BLE + native Windows input | For speech |
+| **Speaker** | Mirrors Windows system audio to ESPCube | BLE control + Wi-Fi/TCP audio | Yes |
+| **Settings** | Device and Companion configuration | Local / BLE as applicable | No for device settings |
 
-- **Mouse** — gyro-driven pointer control with physical click inputs
-- **Text** — touchscreen interaction plus local speech-to-text through the Windows Companion
-- **Speaker** — Windows system-audio streaming to the Cube over a temporary Wi-Fi/TCP path
-- **Settings** — device and Companion configuration
-- **HOME recovery** — hold **A + C** together to return to the launcher
-
-Basic controls are designed around standard Bluetooth HID wherever possible. The native **ESPCube Companion** extends the device with local speech recognition, system-audio capture, Wi-Fi provisioning, background lifecycle management, and status/configuration controls.
+The product rule is deliberate: **standard Bluetooth HID handles ordinary controls whenever possible; the Companion extends the device instead of becoming a prerequisite for everything.**
 
 > [!IMPORTANT]
-> ESPCube is **not dependent on the Companion for ordinary Bluetooth HID operation**.  
-> The Companion adds capabilities such as speech recognition and Speaker streaming.
+> **Hold A + C together to return HOME.**  
+> The hard HOME gesture is intentionally independent of profile-specific behavior.
 
 ---
 
-## Current release
+# Why ESPCube exists
 
-### ESPCube v1.0.0
+ESPCube is not meant to be one game controller, one remote, or one desktop macro pad.
 
-**Released:** September 9, 2026  
-**Target hardware:** Waveshare ESP32-S3-Touch-LCD-1.54  
-**Companion platform:** Windows  
-**Firmware:** Arduino framework via PlatformIO  
-**Companion:** Native Rust application
+The goal is a **universal handheld interface** whose behavior changes through profiles while the core device remains useful and recoverable.
 
-### Release downloads
+That leads to a few design choices that shape the whole project:
 
-| Asset | Purpose |
+- basic interaction should use **standard HID** before custom host software
+- profiles may add richer services without replacing the universal baseline
+- **A + C HOME** remains available as a physical escape path
+- high-bandwidth transports are enabled only when a profile actually needs them
+- local processing is preferred where practical
+- public source is treated as the release source of truth
+- new capabilities should preserve already-proven device behavior
+
+See [`docs/DESIGN_PRINCIPLES.md`](docs/DESIGN_PRINCIPLES.md) for the full design contract.
+
+---
+
+# What ESPCube actually implements
+
+The launcher is intentionally simple. Under it, v1.0.0 spans embedded firmware, Bluetooth HID, custom BLE services, compressed speech transport, local inference, native Windows integration, loopback audio capture, Wi-Fi provisioning, TCP streaming, device-side buffering, and release tooling.
+
+| Area | v1.0.0 implementation |
 |---|---|
-| [`ESPCube-Companion-v1.0.0-Setup.exe`](https://github.com/hasan-bukhari-dev/ESPCube/releases/download/v1.0.0/ESPCube-Companion-v1.0.0-Setup.exe) | Windows Companion installer |
-| [`firmware.bin`](https://github.com/hasan-bukhari-dev/ESPCube/releases/download/v1.0.0/firmware.bin) | Main firmware image |
-| [`firmware.factory.bin`](https://github.com/hasan-bukhari-dev/ESPCube/releases/download/v1.0.0/firmware.factory.bin) | Factory firmware image |
-| [`bootloader.bin`](https://github.com/hasan-bukhari-dev/ESPCube/releases/download/v1.0.0/bootloader.bin) | ESP32-S3 bootloader |
-| [`partitions.bin`](https://github.com/hasan-bukhari-dev/ESPCube/releases/download/v1.0.0/partitions.bin) | Partition table |
-| [`SHA256SUMS.txt`](https://github.com/hasan-bukhari-dev/ESPCube/releases/download/v1.0.0/SHA256SUMS.txt) | Release integrity manifest |
+| Motion input | QMI8658 6-axis IMU + gyro pointer mapping |
+| Touch | CST816S capacitive touchscreen |
+| Host control | Standard Bluetooth HID |
+| BLE | NimBLE-based discovery/presence + custom GATT services |
+| Speech capture | ES7210 microphone frontend |
+| Speech transport | IMA ADPCM over BLE |
+| Speech integrity | sequence tracking, frame/sample parity checks, invalid-packet accounting |
+| Speech ordering | pre-START staging + deferred END drain for notification ordering |
+| Speech inference | persistent local Whisper runtime |
+| Text output | native Windows `SendInput` Unicode injection |
+| PC audio capture | Windows system loopback capture |
+| Speaker transport | TCP over temporary local Wi-Fi |
+| Audio stream | 32 kHz mono signed PCM16 little-endian |
+| Device buffering | PSRAM-backed PCM ring buffer |
+| Speaker output | ESP32-S3 → ES8311 → NS4150B |
+| Desktop app | native Rust + eframe/egui |
+| BLE lifecycle | Dormant → Activating → Ready → Grace |
+| Reconnect behavior | configurable grace period keeps heavy runtime warm |
+| Wi-Fi trust | per-user trusted-network state managed by Companion |
+| Desktop lifecycle | background startup + single-instance coordination |
+| Distribution | per-user Windows installer |
+| Model delivery | Git LFS + installer-bundled Whisper model |
+| Release proof | fresh clone → build → flash → install → physical runtime test |
 
-[**View the full v1.0.0 release →**](https://github.com/hasan-bukhari-dev/ESPCube/releases/tag/v1.0.0)
+No hype is needed here; these are simply the systems that exist in the v1 path.
 
 ---
 
@@ -82,46 +110,73 @@ Basic controls are designed around standard Bluetooth HID wherever possible. The
 The Mouse profile turns ESPCube into a compact motion controller.
 
 - QMI8658 IMU drives gyro-based pointer movement
-- physical buttons provide direct click controls
+- physical buttons provide click controls
 - touchscreen participates in profile interaction
-- standard Bluetooth HID is used for host control
-- ordinary mouse functionality does **not** require the Windows Companion
+- host control uses standard Bluetooth HID
+- ordinary mouse operation does **not** require the Windows Companion
 
-This keeps the most fundamental interface path direct: ESPCube can behave like a normal Bluetooth input device without requiring a custom driver.
+This keeps the basic path direct:
+
+```text
+ESPCube
+   │
+   └── Bluetooth HID ───────────────► Windows
+```
 
 ---
 
 ## Text + local speech
 
-The Text profile combines touchscreen interaction with local voice transcription.
+The Text profile combines touchscreen interaction with local speech-to-text.
 
-Speech is captured on ESPCube, transported to the Windows Companion over BLE, transcribed locally with Whisper, and inserted into the currently focused Windows application using native input injection.
-
-```mermaid
-flowchart LR
-    MIC["Dual microphones"] --> ADC["ES7210"]
-    ADC --> S3["ESP32-S3"]
-    S3 --> ADPCM["IMA ADPCM"]
-    ADPCM -->|BLE| COMP["ESPCube Companion"]
-    COMP --> WHISPER["Whisper"]
-    WHISPER --> TEXT["Recognized text"]
-    TEXT --> SEND["Native Windows input"]
-    SEND --> APP["Focused application"]
-```
-
-### Speech design
-
-- transcription runs **locally on the Windows PC**
-- release users do **not** need Python
-- release users do **not** need `whisper-cli.exe`
-- the installer bundles the v1 Whisper model
-- the Companion keeps the speech engine available while ESPCube is active
-
-The bundled v1 model is:
+The production speech path is:
 
 ```text
-companion/models/ggml-tiny.en.bin
+Dual microphones
+      │
+      ▼
+    ES7210
+      │
+      ▼
+  ESP32-S3
+      │
+      ├── IMA ADPCM encoding
+      ├── sequence numbering
+      └── frame/sample accounting
+      │
+      ▼
+ Bluetooth LE
+      │
+      ▼
+Windows Companion
+      │
+      ├── packet validation
+      ├── sequence-gap accounting
+      ├── pre-START audio staging
+      ├── deferred END drain
+      └── IMA ADPCM decode
+      │
+      ▼
+Persistent local Whisper
+      │
+      ▼
+Native Windows SendInput
+      │
+      ▼
+Focused application
 ```
+
+### What that means in practice
+
+- speech recognition runs **locally on the Windows PC**
+- the production path does **not** require Python
+- the production path does **not** spawn `whisper-cli.exe` per utterance
+- the installer bundles `ggml-tiny.en.bin`
+- the Companion keeps the Whisper context loaded while ESPCube is active
+- transport validation checks frame/sample counts and notification failures before transcription
+- recognized text is inserted into the currently focused Windows application through native Unicode input events
+
+The Companion uses an 800 ms deferred-END window to tolerate a Windows BLE ordering case where the `END` control notification can arrive before the final audio notification.
 
 ---
 
@@ -129,75 +184,101 @@ companion/models/ggml-tiny.en.bin
 
 Speaker turns ESPCube into a local Windows audio endpoint.
 
-The Companion captures the active Windows system output, processes the stream, and sends audio to ESPCube over TCP. Bluetooth remains the control/presence path; Wi-Fi is used only for the higher-bandwidth Speaker audio transport.
+The data plane is intentionally different from the control plane:
 
-```mermaid
-flowchart LR
-    WIN["Windows system audio"] --> CAP["Loopback capture"]
-    CAP --> DSP["Companion DSP"]
-    DSP --> TCP["TCP over local Wi-Fi"]
-    TCP --> CUBE["ESPCube"]
-    CUBE --> BUF["PCM buffer"]
-    BUF --> CODEC["ES8311"]
-    CODEC --> AMP["NS4150B"]
-    AMP --> SPK["Speaker"]
+```text
+Windows system output
+      │
+      ▼
+System loopback capture
+      │
+      ▼
+Companion DSP / resampling
+      │
+      ├── 32 kHz target rate
+      └── 320-sample PCM chunks
+      │
+      ▼
+TCP over local Wi-Fi
+      │
+      ▼
+ESPCube
+      │
+      ▼
+PSRAM-backed PCM ring buffer
+      │
+      ▼
+ES8311 codec
+      │
+      ▼
+NS4150B amplifier
+      │
+      ▼
+Speaker
 ```
 
 ### Speaker transport
 
-- control/presence: **Bluetooth LE**
-- audio transport: **TCP**
+- BLE remains responsible for **presence, readiness, and control**
+- Wi-Fi is used for the high-bandwidth audio stream
 - TCP port: **47821**
-- PCM: **32 kHz**
-- channels: **mono**
-- sample format: **signed PCM16 little-endian**
+- audio format: **32 kHz, mono, signed PCM16 little-endian**
+- Companion chunks output into **320-sample / 640-byte** writes
+- TCP uses `TCP_NODELAY`
+- the device-side ring buffer allocates from **PSRAM**
+- the ring buffer tracks current occupancy and a high-water mark
+- a TCP failure can trigger re-provision/reconnect logic while the profile remains ready
+- a Windows endpoint change can restart loopback capture and rebuild the DSP path
 
 > [!NOTE]
-> Normal ESPCube use does not require Wi-Fi.  
-> Wi-Fi is activated for the Speaker path because continuous audio needs more bandwidth than the BLE control channel.
+> ESPCube does **not** need Wi-Fi for normal Bluetooth HID use.  
+> Wi-Fi exists in v1 because Speaker audio needs a data path that is better suited to continuous PCM than the BLE control channel.
 
 ---
 
 ## Settings
 
-ESPCube and the Companion expose configuration for the device lifecycle and optional services.
-
-Current Companion controls include:
+The native Companion exposes practical lifecycle controls:
 
 - **Show when ESPCube connects**
 - **Start quietly with Windows**
 - **Speech typing**
 - **Windows Speaker mirror**
-- **disconnect grace period**
+- **Sleep after disconnect** / configurable grace period
+
+The default disconnect grace period is three minutes. During Grace, the Companion continues trying to reconnect while keeping heavy runtime state available instead of immediately tearing it down.
 
 Device-side settings provide the control surface for hardware/profile behavior such as motion configuration and calibration.
 
 ---
 
-## HOME recovery
+# Two halves of one product
 
-A universal interface should always have a safe way back.
+ESPCube is both embedded firmware **and** a native desktop companion.
 
-> **Hold A + C together to return to HOME.**
+```text
+┌──────────────────────────┐            ┌──────────────────────────────┐
+│         ESPCube          │            │      Windows Companion       │
+│                          │            │                              │
+│  Touchscreen             │            │  BLE lifecycle manager       │
+│  Physical buttons        │◄── BLE ───►│  Persistent Whisper          │
+│  QMI8658 IMU             │            │  Speech decoder/validator    │
+│  Dual microphones        │            │  Native text injection       │
+│  Audio codec + amplifier │            │  System loopback capture     │
+│                          │            │  DSP + TCP Speaker transport │
+│  Bluetooth HID ──────────┼───────────►│  Windows host                │
+│                          │            │  Trusted Wi-Fi state         │
+│  PCM ring buffer ◄───────┼── TCP ─────│  Audio server path           │
+└──────────────────────────┘            └──────────────────────────────┘
+```
 
-The HOME gesture is intentionally independent of profile-specific interaction so the user cannot become trapped inside a mode.
-
----
-
-# Profiles at a glance
-
-| Profile | Primary connection | Companion required? | Purpose |
-|---|---|---:|---|
-| **Mouse** | Bluetooth HID | No | Gyro pointer and click control |
-| **Text** | BLE + host input | For speech | Touch and local speech text entry |
-| **Speaker** | BLE + Wi-Fi/TCP | Yes | Windows system-audio streaming |
-| **Settings** | Local / BLE as applicable | No for device settings | Device and Companion configuration |
+The Companion is an extension layer. Direct HID remains direct.
 
 ---
 
 # System architecture
 
-ESPCube separates **direct host control** from **extended Companion services**.
+This is the high-level runtime view.
 
 ```mermaid
 flowchart TB
@@ -239,11 +320,9 @@ flowchart TB
     WIFI -->|Speaker audio| CUBE
 ```
 
-### Why two paths?
+The architecture intentionally separates **direct host control** from **extended Companion services**.
 
-**Bluetooth HID** handles standard controls directly. That means the Cube can remain useful without a custom desktop application for every interaction.
-
-**BLE services** let the Companion add richer capabilities that standard HID cannot provide cleanly, such as speech-audio transport, device presence, Speaker control, and Wi-Fi session coordination.
+For the full engineering view, including lifecycle, speech ordering, audio buffering and failure recovery, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
@@ -292,7 +371,7 @@ ESPCube v1 targets the **Waveshare ESP32-S3-Touch-LCD-1.54**.
 | Audio DOUT | 12 |
 | Power amplifier control | 7 |
 
-The firmware owns the shared I²C bus with:
+The shared I²C bus is initialized by the firmware with:
 
 ```cpp
 Wire.begin(42, 41);
@@ -300,310 +379,154 @@ Wire.begin(42, 41);
 
 </details>
 
----
-
-# Software stack
-
-## Firmware
-
-The firmware is built with the Arduino framework through PlatformIO.
-
-Core technologies:
-
-- ESP32-S3
-- Arduino framework
-- PlatformIO
-- NimBLE-Arduino
-- Arduino_GFX
-- QMI8658 driver
-- ArduinoJson
-- custom ESPCube hardware/service modules
-
-High-level organization:
-
-```text
-firmware/src/main.cpp
-        │
-        └── launcher / profile coordination
-                 │
-                 └── firmware/lib/
-                     ├── ESPCubeHID
-                     ├── ESPCubeSpeech
-                     ├── ESPCubeSpeechLink
-                     ├── ESPCubeSpeakerControl
-                     ├── ESPCubeSpeakerPlayback
-                     ├── ESPCubeSpeakerPcmRingBuffer
-                     ├── ESPCubeSpeakerVolume
-                     └── ESPCubeSpeakerB1Test
-```
-
-v1.0.0 intentionally preserves the runtime architecture that passed device testing rather than performing a risky release-time rewrite.
-
----
-
-## Windows Companion
-
-The production Companion is a **native Rust application**.
-
-It is responsible for:
-
-- ESPCube discovery and BLE lifecycle
-- device presence tracking
-- persistent Whisper speech recognition
-- speech-audio receive/decode
-- native Windows text injection
-- Windows system loopback audio capture
-- Speaker DSP and TCP transport
-- trusted Wi-Fi provisioning
-- background startup
-- single-instance coordination
-- persistent settings
-- status and configuration UI
-- logging
-
-**Python is not required for normal use.**
-
----
-
-# How ESPCube connects
-
-Understanding the three connection layers makes the system much easier to reason about.
-
-## 1. Bluetooth HID — direct controls
-
-```text
-ESPCube  ── Bluetooth HID ──>  Windows
-```
-
-Used for ordinary host input such as mouse/control behavior.
-
-The Companion is not in the middle of this path.
-
----
-
-## 2. Bluetooth LE — Companion services
-
-```text
-ESPCube  <── BLE ──>  ESPCube Companion
-```
-
-Used for:
-
-- presence and discovery
-- speech control/audio transport
-- Speaker control
-- Speaker session coordination
-- status exchange
-
-Bluetooth remains the primary control and presence transport.
-
----
-
-## 3. Wi-Fi/TCP — Speaker audio only
-
-```text
-Windows Companion  ── local Wi-Fi / TCP ──>  ESPCube
-```
-
-Wi-Fi is used only when the Speaker profile needs the higher-bandwidth audio path.
-
-The public firmware does **not** contain personal Wi-Fi credentials. The Companion manages trusted network information locally rather than requiring credentials to be compiled into the firmware.
+Full hardware notes: [`docs/HARDWARE.md`](docs/HARDWARE.md)
 
 ---
 
 # Install ESPCube
 
-There are two different audiences:
+## For normal users
 
-1. **Users** who want to install and use ESPCube
-2. **Developers** who want to build it from source
+### 1. Flash the firmware
 
-If you only want to use the device, start here.
+Connect the Waveshare board over a USB **data** cable.
 
----
-
-## User installation
-
-### Step 1 — Flash the ESPCube firmware
-
-You need:
-
-- the Waveshare ESP32-S3-Touch-LCD-1.54
-- a USB **data** cable
-- PlatformIO
-- the ESPCube source or release firmware
-
-From the `firmware/` directory:
+From `firmware/`:
 
 ```powershell
 platformio run -e espcube -t upload
 ```
 
-If your system has multiple serial devices, specify the port:
+If you need to select the serial port explicitly:
 
 ```powershell
 platformio run -e espcube -t upload --upload-port COM22
 ```
 
-`COM22` is only an example. Your port may be different.
+`COM22` is only an example.
 
-To list Windows serial ports:
+To list serial ports on Windows:
 
 ```powershell
 Get-CimInstance Win32_SerialPort |
     Select-Object DeviceID, Name
 ```
 
-A Windows flashing helper is also included:
+A Windows helper is included:
 
 ```powershell
 .\scripts\flash-windows.ps1 -Port COM22
 ```
 
-If automatic port detection works on your machine, the explicit port may be omitted.
-
 ---
 
-### Step 2 — Install the Windows Companion
+### 2. Install the Windows Companion
 
 Download:
 
 **[`ESPCube-Companion-v1.0.0-Setup.exe`](https://github.com/hasan-bukhari-dev/ESPCube/releases/download/v1.0.0/ESPCube-Companion-v1.0.0-Setup.exe)**
 
-Run the installer normally.
-
 The installer:
 
 - installs per-user
-- does not require a Python runtime
-- bundles the exact v1 Whisper model
-- creates a Start Menu entry
-- supports background Windows startup
+- bundles the v1 Whisper model
+- creates a Start Menu shortcut
+- registers background Windows startup
 - includes uninstall support
+- does not require Python for normal use
 
-Default installation location:
+Install location:
 
 ```text
 %LOCALAPPDATA%\Programs\ESPCube Companion
 ```
 
-The executable is:
-
-```text
-%LOCALAPPDATA%\Programs\ESPCube Companion\ESPCube Companion.exe
-```
-
 ---
 
-### Step 3 — Pair ESPCube with Windows
+### 3. Pair ESPCube
 
-If Windows has not paired with the device yet:
+If Windows has not paired the device yet:
 
 ```text
-Windows Settings
+Settings
 → Bluetooth & devices
 → Add device
 → Bluetooth
 → ESPCube
 ```
 
-Make sure Bluetooth is enabled and ESPCube is powered on.
-
 ---
 
-### Step 4 — Recommended Companion settings
+### 4. Recommended Companion settings
 
-For normal daily use, enable:
+For the intended daily workflow:
 
 ```text
 Show when ESPCube connects      ON
 Start quietly with Windows      ON
-```
-
-This gives the intended lifecycle:
-
-```mermaid
-flowchart LR
-    LOGIN["Windows login"] --> BG["Companion starts quietly"]
-    BG --> POWER["Turn on ESPCube"]
-    POWER --> BLE["BLE connection"]
-    BLE --> SHOW["Companion detects Cube"]
-    SHOW --> WINDOW["Window appears if Show on Connect is enabled"]
+Speech typing                   ON
+Windows Speaker mirror          ON
 ```
 
 ---
 
 # Daily use
 
-Once ESPCube is installed, normal use should require almost no setup.
+After installation, the normal routine is short:
 
 1. Log into Windows.
 2. Turn on ESPCube.
-3. Wait for Bluetooth to reconnect.
-4. The Companion detects the Cube in the background.
-5. If **Show when ESPCube connects** is enabled, the Companion window appears.
-6. Select **Mouse**, **Text**, **Speaker**, or **Settings** on the Cube.
-7. Hold **A + C** whenever you want to return HOME.
+3. Wait for Bluetooth.
+4. The Companion detects the Cube.
+5. If **Show when ESPCube connects** is enabled, its window appears.
+6. Choose **Mouse**, **Text**, **Speaker**, or **Settings** on the Cube.
+7. Hold **A + C** at any point to return HOME.
 
-You normally do **not** need to open PowerShell, rebuild firmware, or manually start Whisper.
-
----
-
-# Companion window and background behavior
-
-The Companion is intended to stay available quietly rather than being repeatedly started and stopped.
-
-## Minimize
-
-Minimizing keeps the window on the Windows taskbar.
-
-## Close button (`X`)
-
-The window close button hides the Companion rather than terminating the background process.
-
-This allows ESPCube services to remain available after the window disappears.
-
-## Automatic display
-
-With:
-
-```text
-Show when ESPCube connects
-```
-
-enabled, a new ESPCube connection can bring the Companion window back into view.
-
-## Automatic startup
-
-With:
-
-```text
-Start quietly with Windows
-```
-
-enabled, the Companion starts in the background after Windows login.
+There should be no need to open PowerShell, reload Whisper, or manually start a development harness.
 
 ---
 
-# Reopening the Companion
+# Companion background behavior
 
-## Normal method
+The Companion is designed to remain available quietly.
 
-Open the Start Menu and search for:
+### Start with Windows
+
+When enabled, the installer/startup registration launches:
+
+```text
+ESPCube Companion.exe --background
+```
+
+### Show on connect
+
+A new Ready connection increments the Companion's connection generation. If **Show when ESPCube connects** is enabled, the UI makes the window visible and requests focus.
+
+### Close button
+
+The window close button hides the UI instead of terminating the background process.
+
+### Minimize
+
+Minimize leaves the window on the taskbar.
+
+### Reopen manually
+
+Search the Start Menu for:
 
 ```text
 ESPCube Companion
 ```
 
-You can also launch the installed executable from PowerShell:
+or run:
 
 ```powershell
 Start-Process "$env:LOCALAPPDATA\Programs\ESPCube Companion\ESPCube Companion.exe"
 ```
 
-## Troubleshooting: hidden/stale background instance
+### If the background instance stays hidden
 
-If the Companion process is running but the window does not reappear, restart the process:
+Troubleshooting-only restart:
 
 ```powershell
 Get-Process "ESPCube Companion" -ErrorAction SilentlyContinue |
@@ -612,175 +535,220 @@ Get-Process "ESPCube Companion" -ErrorAction SilentlyContinue |
 Start-Process "$env:LOCALAPPDATA\Programs\ESPCube Companion\ESPCube Companion.exe"
 ```
 
-This is a recovery command, not part of normal daily use.
+More details: [`docs/COMPANION.md`](docs/COMPANION.md)
 
 ---
 
-# Wi-Fi and trusted networks
+# Connection model
 
-ESPCube does not require Wi-Fi for ordinary Bluetooth HID use.
+ESPCube deliberately uses different transports for different jobs.
 
-The **Speaker** profile uses Wi-Fi because continuous audio requires a higher-bandwidth transport.
+## Bluetooth HID
 
-The Companion manages the trusted Wi-Fi state locally. Personal credentials are not embedded in the public ESPCube firmware source.
-
-A typical Speaker session is:
-
-```mermaid
-sequenceDiagram
-    participant C as ESPCube
-    participant P as Windows Companion
-    participant W as Local Wi-Fi
-
-    C->>P: Speaker requested over BLE
-    P->>P: Check trusted/current network
-    P->>C: Coordinate Speaker session
-    C->>W: Join local network
-    P->>C: Stream PCM audio over TCP
-    C->>C: Buffer → codec → amplifier
+```text
+ESPCube ── Bluetooth HID ──► Windows
 ```
 
-If you move to a different network, you may need to trust/configure that network in the Companion before Speaker streaming can begin.
+Best fit for standard host control.
+
+## BLE services
+
+```text
+ESPCube ◄──── Bluetooth LE ────► Companion
+```
+
+Used for:
+
+- device presence
+- speech control and audio
+- Speaker readiness/control
+- Wi-Fi provisioning commands
+- status exchange
+
+## Wi-Fi + TCP
+
+```text
+Companion ── local Wi-Fi / TCP ──► ESPCube
+```
+
+Used for Speaker PCM only.
+
+The Companion stores trusted Wi-Fi state locally at:
+
+```text
+%LOCALAPPDATA%\ESPCube\trusted_wifi.json
+```
+
+Companion settings are stored at:
+
+```text
+%LOCALAPPDATA%\ESPCube\companion.json
+```
+
+Personal Wi-Fi credentials are not compiled into the public firmware.
+
+---
+
+# Companion presence lifecycle
+
+The desktop runtime models connection state explicitly:
+
+```text
+Dormant
+   │
+   ▼
+Activating
+   │
+   ▼
+ Ready
+   │
+   │ disconnect
+   ▼
+ Grace
+   │
+   ├── reconnect ───────────────► Ready
+   │
+   └── grace expires ───────────► Dormant
+```
+
+Why Grace exists:
+
+- short BLE disconnects should not unload the Whisper context immediately
+- the Companion can continue scanning for ESPCube
+- reconnects can recover without fully rebuilding heavy runtime state
+- after the grace deadline, the Companion unloads Whisper and returns to Dormant
+
+This is a small piece of the UI, but an important part of making the product behave like an application rather than a one-shot dev script.
 
 ---
 
 # Privacy and local processing
 
-ESPCube v1 is designed so that its key enhanced features can operate locally.
-
 ### Speech
 
-- Whisper transcription runs locally on the Windows PC.
-- The production speech path does not require a cloud transcription service.
-- Release users do not need Python or an external Whisper CLI.
+- Whisper inference runs locally on the Windows PC.
+- The production path does not require a cloud transcription service.
+- Release users do not need Python or an external `whisper-cli.exe`.
 
-### Wi-Fi credentials
+### Wi-Fi
 
-- personal credentials are not hardcoded into the public firmware
-- trusted network data is managed by the Companion locally
-- the repository includes only a safe blank credentials stub
+- personal Wi-Fi credentials are not hardcoded into public firmware
+- the Companion stores trusted networks locally for the current Windows user
+- the Companion attempts to restrict the trusted network file to the current user where Windows permissions allow it
 
-### Network usage
+### Network use
 
-- standard host control uses Bluetooth
-- Companion coordination uses BLE
-- Speaker audio uses the local Wi-Fi/TCP path
+- ordinary controls: Bluetooth HID
+- Companion control/services: BLE
+- Speaker payload: local Wi-Fi/TCP
 
 ---
 
 # Build from source
 
-## Clone the repository
-
-Because the v1 Whisper model is tracked with Git LFS, install LFS before cloning.
+Because the model is tracked with Git LFS:
 
 ```powershell
 git lfs install
 git clone https://github.com/hasan-bukhari-dev/ESPCube.git
 cd ESPCube
-```
-
-Verify that the model is present:
-
-```powershell
 git lfs ls-files
 ```
 
----
-
-## Build the firmware
-
-Requirements:
-
-- PlatformIO
-- USB data connection to the Waveshare ESP32-S3-Touch-LCD-1.54
-
-From the repository root:
+## Firmware
 
 ```powershell
 cd firmware
 platformio run -e espcube
-```
-
-Flash:
-
-```powershell
 platformio run -e espcube -t upload --upload-port COM22
 ```
 
-Again, replace `COM22` with the actual port on your machine.
-
----
-
-## Build the Windows Companion
-
-Requirements:
-
-- Windows
-- Rust toolchain / Cargo
-- the model at `companion/models/ggml-tiny.en.bin`
-
-From `companion/`:
+## Companion
 
 ```powershell
+cd companion
 cargo check
 cargo test
 cargo build --release
 ```
 
-The production source uses `whisper-rs`. `whisper-cli.exe` is not part of the normal runtime path.
-
-### Build the Windows installer
-
-From `companion/`:
+Build the Windows installer:
 
 ```powershell
 .\scripts\build-installer-windows.ps1
 ```
 
+Complete build guide: [`docs/BUILDING.md`](docs/BUILDING.md)
+
 ---
 
-# Fresh-source verification
+# Release engineering
 
-The repository includes a source verification helper:
+ESPCube v1.0.0 was not released from an old development workspace.
 
-```powershell
-.\scripts\verify-source-build.ps1
-```
-
-The v1.0.0 release was validated through the complete release path:
+The release path was validated as:
 
 ```text
-GitHub source
-    ↓
-fresh clone
-    ↓
-Git LFS model verification
-    ↓
-firmware build
-    ↓
-device flash
-    ↓
-Companion build + tests
-    ↓
-installer build
-    ↓
-installer installation
-    ↓
-device runtime validation
+Public GitHub repository
+        │
+        ▼
+Clean fresh clone
+        │
+        ▼
+Git LFS model retrieval / verification
+        │
+        ▼
+Firmware source build
+        │
+        ▼
+Physical ESPCube flash
+        │
+        ▼
+Companion cargo check + tests + release build
+        │
+        ▼
+Windows installer build
+        │
+        ▼
+Installed Companion launch
+        │
+        ▼
+Physical runtime validation
+        │
+        ▼
+SHA-256 release bundle
+        │
+        ▼
+GitHub v1.0.0 release
 ```
 
-This release process is intended to keep the public repository—not a private development workspace—as the reproducible source of truth.
+Runtime validation covered the shipping workflows:
+
+- Mouse
+- Text
+- speech via Companion
+- Speaker
+- Settings
+- A + C HOME
+- Speaker disconnect/reconnect
+- installed Companion startup
+
+See [`docs/RELEASE_VALIDATION.md`](docs/RELEASE_VALIDATION.md).
 
 ---
 
 # Release integrity
 
-Every v1.0.0 binary release includes a SHA-256 manifest:
+The GitHub v1.0.0 release includes:
 
-**[`SHA256SUMS.txt`](https://github.com/hasan-bukhari-dev/ESPCube/releases/download/v1.0.0/SHA256SUMS.txt)**
+- `ESPCube-Companion-v1.0.0-Setup.exe`
+- `firmware.bin`
+- `firmware.factory.bin`
+- `bootloader.bin`
+- `partitions.bin`
+- `SHA256SUMS.txt`
 
-Example Windows verification:
+Verify the installer on Windows:
 
 ```powershell
 Get-FileHash .\ESPCube-Companion-v1.0.0-Setup.exe -Algorithm SHA256
@@ -792,36 +760,46 @@ Expected v1.0.0 installer SHA-256:
 0C94DF4423500F12F5868C3DFD81C09DC9393D8FEA226C069D24B1496D1B4037
 ```
 
-For all release artifacts, use the published `SHA256SUMS.txt` manifest.
+Use the published [`SHA256SUMS.txt`](https://github.com/hasan-bukhari-dev/ESPCube/releases/download/v1.0.0/SHA256SUMS.txt) for every release artifact.
 
 ---
 
-# Repository structure
+# Repository map
 
 ```text
 ESPCube/
 │
 ├── firmware/
-│   ├── src/                         Main firmware / launcher
-│   ├── lib/                         Hardware + service modules
-│   ├── include/                     Configuration / safe secrets stub
-│   ├── scripts/                     Windows flashing helper
+│   ├── src/                         Launcher / profile coordination
+│   ├── lib/
+│   │   ├── ESPCubeHID
+│   │   ├── ESPCubeSpeech
+│   │   ├── ESPCubeSpeechLink
+│   │   ├── ESPCubeSpeakerControl
+│   │   ├── ESPCubeSpeakerPlayback
+│   │   ├── ESPCubeSpeakerPcmRingBuffer
+│   │   ├── ESPCubeSpeakerVolume
+│   │   └── ESPCubeSpeakerB1Test
+│   ├── include/                     Configuration / blank secrets stub
+│   ├── scripts/                     Flash helper
 │   └── platformio.ini
 │
 ├── companion/
 │   ├── src/                         Native Rust Companion
 │   ├── models/                      Whisper model via Git LFS
-│   ├── installer/                   Windows installer definition
-│   └── scripts/                     Companion/installer build tooling
+│   ├── installer/                   Inno Setup definition
+│   └── scripts/                     Build/installer tooling
 │
 ├── docs/
 │   ├── ADDING_A_PROFILE.md
 │   ├── ARCHITECTURE.md
 │   ├── BUILDING.md
 │   ├── COMPANION.md
+│   ├── DESIGN_PRINCIPLES.md
 │   ├── HARDWARE.md
 │   ├── PROTOCOL.md
 │   ├── QUICK_START.md
+│   ├── RELEASE_VALIDATION.md
 │   └── TROUBLESHOOTING.md
 │
 ├── releases/
@@ -837,204 +815,49 @@ ESPCube/
 
 ---
 
-# Low-level protocol summary
+# Extending ESPCube
 
-<details>
-<summary><strong>Speech BLE service</strong></summary>
-
-<br>
-
-Service UUID:
-
-```text
-45535043-5542-4c45-8000-000000000001
-```
-
-Characteristics:
-
-| Characteristic | UUID suffix |
-|---|---|
-| CONTROL | `...0002` |
-| STATUS | `...0003` |
-| AUDIO | `...0004` |
-
-Speech audio uses the v1 IMA ADPCM transport.
-
-</details>
-
-<details>
-<summary><strong>Speaker BLE + TCP transport</strong></summary>
-
-<br>
-
-Speaker service UUID:
-
-```text
-45535043-5542-4c45-8100-000000000001
-```
-
-Characteristics:
-
-| Characteristic | UUID suffix |
-|---|---|
-| COMMAND | `...0002` |
-| STATUS | `...0003` |
-
-Speaker audio transport:
-
-```text
-TCP port: 47821
-PCM:      32 kHz, mono, signed PCM16 little-endian
-```
-
-Bluetooth remains the primary control/presence path.
-
-</details>
-
-For the full protocol reference, see [`docs/PROTOCOL.md`](docs/PROTOCOL.md).
-
----
-
-# Design principles
-
-ESPCube is developed around a small set of product rules.
-
-### Universal first
-
-The device should not be tied to one game, operating-system feature, or application.
-
-### Standard HID whenever possible
-
-Basic interaction should use host-standard interfaces before introducing custom software dependencies.
-
-### Companion as an extension
-
-The Companion should add capabilities—not become a requirement for basic control.
-
-### HOME must always be recoverable
-
-Profiles should never trap the user. A physical HOME gesture remains available.
-
-### Profiles are capabilities
-
-Mouse, Text, Speaker, Settings, and future modes are different uses of the same hardware platform.
-
-### Local processing where practical
-
-Speech recognition runs locally on the PC, and Speaker transport remains on the local device/network path.
-
-### Preserve proven release behavior
-
-Large architectural refactors should not be introduced simply for elegance immediately before a release.
-
-### Public source is the source of truth
-
-A release should be buildable and testable from a fresh checkout of the public repository.
-
----
-
-# Adding a profile
-
-ESPCube is intended to grow through additional profiles without sacrificing the universal baseline.
-
-Conceptually:
+A profile is a capability layer over shared hardware/services.
 
 ```text
 Launcher
    │
-   └── Profile
-       ├── touch input
-       ├── physical buttons
-       ├── IMU
-       ├── HID output
-       ├── BLE service
-       └── optional Companion service
+   ▼
+Profile
+   ├── touch input
+   ├── physical buttons
+   ├── IMU
+   ├── HID output
+   ├── optional BLE service
+   ├── optional audio path
+   └── optional Companion capability
 ```
 
-v1.0.0 keeps the proven firmware coordinator architecture intact. Future releases can extract cleaner profile boundaries behind stable hardware/service interfaces without changing the fundamental product model.
+New profiles must preserve:
 
-See:
+- HOME recovery
+- release of held HID state on teardown
+- temporary-resource cleanup
+- the direct universal baseline
+- Wi-Fi-off-by-default unless bandwidth justifies it
 
-**[`docs/ADDING_A_PROFILE.md`](docs/ADDING_A_PROFILE.md)**
+See [`docs/ADDING_A_PROFILE.md`](docs/ADDING_A_PROFILE.md).
 
 ---
 
 # Troubleshooting
 
-## Companion does not appear
+| Symptom | Likely layer | First action |
+|---|---|---|
+| Cube not found | Bluetooth/BLE | verify Bluetooth and ESPCube power |
+| Mouse works, speech does not | Companion / speech GATT | check Companion speech status |
+| Speech transcribes but does not type | Windows input | focus a normal text field and retry |
+| Speaker profile opens but no audio | Wi-Fi/TCP/audio capture | verify trusted network + default audio output |
+| Audio device changes mid-stream | Windows capture | allow Companion recovery or reopen Speaker |
+| Companion is running but hidden | desktop lifecycle | reopen/restart Companion |
+| Firmware will not flash | USB/COM | detect serial port and specify it |
 
-First try the normal installed executable:
-
-```powershell
-Start-Process "$env:LOCALAPPDATA\Programs\ESPCube Companion\ESPCube Companion.exe"
-```
-
-If it remains hidden, use the restart command documented in [Reopening the Companion](#reopening-the-companion).
-
----
-
-## Companion cannot find ESPCube
-
-Check:
-
-- Windows Bluetooth is enabled
-- ESPCube is powered
-- ESPCube is advertising / reconnecting
-- the Companion is running
-
-Then restart the Companion if necessary.
-
----
-
-## Firmware will not upload
-
-Confirm that:
-
-- the USB cable supports data
-- the board appears in Device Manager
-- you are using the correct COM port
-
-List serial ports:
-
-```powershell
-Get-CimInstance Win32_SerialPort |
-    Select-Object DeviceID, Name
-```
-
-Then flash explicitly:
-
-```powershell
-platformio run -e espcube -t upload --upload-port COMxx
-```
-
----
-
-## Speech is unavailable
-
-For release-installer users, the model is bundled automatically.
-
-For source builds, verify:
-
-```text
-companion/models/ggml-tiny.en.bin
-```
-
----
-
-## Speaker does not start
-
-Check:
-
-- Windows has an active default audio output
-- ESPCube is in the Speaker profile
-- the PC is connected to a usable Wi-Fi network
-- the current network is trusted/configured in the Companion
-
-If necessary, return HOME and reopen Speaker.
-
-For more cases, see:
-
-**[`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)**
+Full symptom-first guide: [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
 
 ---
 
@@ -1043,31 +866,38 @@ For more cases, see:
 ## v1.0.0 — current baseline
 
 - [x] Touchscreen launcher
-- [x] Gyro Mouse profile
+- [x] Gyro Mouse
 - [x] Bluetooth HID
 - [x] Text profile
-- [x] Local Whisper speech recognition
-- [x] Native Windows text injection
-- [x] Windows Speaker streaming
+- [x] IMA ADPCM speech transport
+- [x] sequence/parity speech validation
+- [x] persistent local Whisper
+- [x] native Windows text injection
+- [x] Windows loopback audio capture
+- [x] TCP Speaker transport
+- [x] PSRAM PCM ring buffer
+- [x] Speaker reconnect handling
+- [x] BLE lifecycle + disconnect grace
+- [x] trusted Wi-Fi provisioning
 - [x] Settings
 - [x] A + C HOME recovery
-- [x] Native Rust Companion
-- [x] Windows installer
-- [x] Fresh-clone release verification
+- [x] native Rust Companion
+- [x] per-user Windows installer
+- [x] fresh-clone release validation
 
 ## Future directions
 
 Potential future work includes:
 
 - additional profiles
-- configurable control mappings
-- game and media-oriented profiles
+- configurable mappings
+- game/media profiles
 - richer desktop integrations
-- more Companion personalization
-- additional host-platform support
+- more UI personalization
+- broader host-platform support
 - deeper profile modularization
 
-No roadmap item implies a release date or compatibility commitment.
+These are directions, not release-date commitments.
 
 ---
 
@@ -1075,20 +905,22 @@ No roadmap item implies a release date or compatibility commitment.
 
 | Document | Purpose |
 |---|---|
-| [`QUICK_START.md`](docs/QUICK_START.md) | Installation and first-use flow |
-| [`HARDWARE.md`](docs/HARDWARE.md) | Hardware components and pinout |
-| [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Firmware and Companion architecture |
-| [`COMPANION.md`](docs/COMPANION.md) | Native Windows Companion responsibilities |
-| [`PROTOCOL.md`](docs/PROTOCOL.md) | Speech BLE and Speaker BLE/TCP protocols |
-| [`BUILDING.md`](docs/BUILDING.md) | Build firmware and Companion from source |
-| [`ADDING_A_PROFILE.md`](docs/ADDING_A_PROFILE.md) | Profile extension contract |
-| [`TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | Common failure modes and recovery |
+| [`QUICK_START.md`](docs/QUICK_START.md) | Zero-to-working setup and first demo |
+| [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Full embedded + desktop systems architecture |
+| [`HARDWARE.md`](docs/HARDWARE.md) | Board, buses, pinout and audio paths |
+| [`COMPANION.md`](docs/COMPANION.md) | Native Windows Companion design |
+| [`PROTOCOL.md`](docs/PROTOCOL.md) | BLE speech + Speaker control/TCP protocol |
+| [`BUILDING.md`](docs/BUILDING.md) | Reproducible source builds |
+| [`ADDING_A_PROFILE.md`](docs/ADDING_A_PROFILE.md) | Profile extension contract + regression checklist |
+| [`TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | Symptom-first recovery guide |
+| [`DESIGN_PRINCIPLES.md`](docs/DESIGN_PRINCIPLES.md) | Product rules that future changes must preserve |
+| [`RELEASE_VALIDATION.md`](docs/RELEASE_VALIDATION.md) | v1 validation record + future release checklist |
 
 ---
 
 # Technology and acknowledgements
 
-ESPCube builds on the work of the wider embedded and open-source ecosystem, including:
+ESPCube builds on the wider embedded and open-source ecosystem, including:
 
 - Espressif ESP32-S3
 - Waveshare ESP32-S3-Touch-LCD-1.54 hardware
@@ -1096,12 +928,14 @@ ESPCube builds on the work of the wider embedded and open-source ecosystem, incl
 - Arduino
 - NimBLE-Arduino
 - Arduino_GFX
+- ArduinoJson
 - QMI8658 Arduino support
 - Rust
 - eframe / egui
+- btleplug
 - whisper-rs / Whisper ecosystem
 
-Third-party components remain subject to their respective licenses and terms.
+Third-party components remain subject to their respective terms.
 
 ---
 
@@ -1111,10 +945,12 @@ Third-party components remain subject to their respective licenses and terms.
 
 **One handheld. Multiple interfaces. A platform designed to grow.**
 
-[Download](https://github.com/hasan-bukhari-dev/ESPCube/releases/tag/v1.0.0)
+[**Download**](https://github.com/hasan-bukhari-dev/ESPCube/releases/tag/v1.0.0)
 &nbsp;•&nbsp;
-[Documentation](docs/QUICK_START.md)
+[**Quick Start**](docs/QUICK_START.md)
 &nbsp;•&nbsp;
-[Source](https://github.com/hasan-bukhari-dev/ESPCube)
+[**Architecture**](docs/ARCHITECTURE.md)
+&nbsp;•&nbsp;
+[**Source**](https://github.com/hasan-bukhari-dev/ESPCube)
 
 </div>
