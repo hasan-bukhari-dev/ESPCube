@@ -238,7 +238,6 @@ flowchart TB
 
         FW --> HID
         FW --> BLE
-        FW --> AUDIO
     end
 
 
@@ -253,8 +252,9 @@ flowchart TB
             WHISPER["Persistent Whisper"]
             INPUT["Native Text Injection"]
             CAPTURE["System Audio Capture"]
-            TCP["Wi-Fi / TCP Speaker Transport"]
         end
+
+        TCP["Wi-Fi / TCP Speaker Transport"]
 
         COMP --> WHISPER
         COMP --> INPUT
