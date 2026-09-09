@@ -228,9 +228,8 @@ flowchart TB
             direction LR
             HID["Bluetooth HID"]
             BLE["BLE Services"]
+            AUDIO["Speaker Playback / Audio Hardware"]
         end
-
-        AUDIO["Speaker Playback / Audio Hardware"]
 
         TOUCH --> FW
         BUTTONS --> FW
@@ -239,6 +238,7 @@ flowchart TB
 
         FW --> HID
         FW --> BLE
+        FW --> AUDIO
     end
 
 
@@ -265,8 +265,8 @@ flowchart TB
 
 
     HID -->|"Standard controls"| WINDOWS
-    BLE <-->|"Presence / Speech / Speaker control"| COMP
-    TCP -->|"Speaker audio"| AUDIO
+    BLE ---|"BLE · presence / speech / control"| COMP
+    AUDIO ---|"Speaker PCM · TCP :47821"| TCP
 ```
 
 The architecture intentionally separates:
