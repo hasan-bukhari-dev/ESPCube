@@ -89,7 +89,7 @@ impl eframe::App for CompanionApp {
 
         if self.show_requested.swap(false, Ordering::SeqCst) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         }
 
@@ -100,7 +100,7 @@ impl eframe::App for CompanionApp {
 
             if show_on_connect {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
             }
         }
@@ -204,6 +204,14 @@ impl eframe::App for CompanionApp {
 
             if let Some(device) = &snapshot.audio_device {
                 tiny_row(ui, "Audio", device);
+            }
+
+            if snapshot.speaker_status == "Streaming" || snapshot.speaker_capture_drops > 0 {
+                tiny_row(
+                    ui,
+                    "Capture drops",
+                    &snapshot.speaker_capture_drops.to_string(),
+                );
             }
 
             ui.add_space(14.0);

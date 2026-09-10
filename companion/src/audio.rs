@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::SyncSender;
 
 use anyhow::{Context, Result, bail};
@@ -39,10 +41,32 @@ pub enum AudioMessage {
     Error(String),
 }
 
+#[derive(Debug, Clone)]
+pub struct CaptureStats {
+    dropped_blocks: Arc<AtomicU64>,
+}
+
+impl CaptureStats {
+    fn new() -> Self {
+        Self {
+            dropped_blocks: Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    pub fn dropped_blocks(&self) -> u64 {
+        self.dropped_blocks.load(Ordering::Relaxed)
+    }
+
+    fn note_drop(&self) {
+        self.dropped_blocks.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
 pub struct LoopbackCapture {
     pub stream: Stream,
     pub device_name: String,
     pub sample_rate: u32,
+    pub stats: CaptureStats,
 }
 
 pub fn start_system_loopback(tx: SyncSender<AudioMessage>) -> Result<LoopbackCapture> {
@@ -65,25 +89,35 @@ pub fn start_system_loopback(tx: SyncSender<AudioMessage>) -> Result<LoopbackCap
 
     let channels = config.channels as usize;
     let sample_rate = config.sample_rate.0;
+    let stats = CaptureStats::new();
 
     let err_tx = tx.clone();
+    let err_stats = stats.clone();
 
     let err_fn = move |err: cpal::StreamError| {
-        let _ = err_tx.try_send(AudioMessage::Error(err.to_string()));
+        if err_tx.try_send(AudioMessage::Error(err.to_string())).is_err() {
+            err_stats.note_drop();
+        }
     };
 
     let stream = match sample_format {
         SampleFormat::F32 => {
             let tx = tx.clone();
+            let stats = stats.clone();
 
             device.build_input_stream(
                 &config,
                 move |data: &[f32], _| {
-                    let _ = tx.try_send(AudioMessage::Block(AudioBlock {
-                        samples: data.to_vec(),
-                        channels,
-                        sample_rate,
-                    }));
+                    if tx
+                        .try_send(AudioMessage::Block(AudioBlock {
+                            samples: data.to_vec(),
+                            channels,
+                            sample_rate,
+                        }))
+                        .is_err()
+                    {
+                        stats.note_drop();
+                    }
                 },
                 err_fn,
                 None,
@@ -92,17 +126,23 @@ pub fn start_system_loopback(tx: SyncSender<AudioMessage>) -> Result<LoopbackCap
 
         SampleFormat::I16 => {
             let tx = tx.clone();
+            let stats = stats.clone();
 
             device.build_input_stream(
                 &config,
                 move |data: &[i16], _| {
                     let samples = data.iter().map(|v| *v as f32 / 32768.0).collect();
 
-                    let _ = tx.try_send(AudioMessage::Block(AudioBlock {
-                        samples,
-                        channels,
-                        sample_rate,
-                    }));
+                    if tx
+                        .try_send(AudioMessage::Block(AudioBlock {
+                            samples,
+                            channels,
+                            sample_rate,
+                        }))
+                        .is_err()
+                    {
+                        stats.note_drop();
+                    }
                 },
                 err_fn,
                 None,
@@ -111,6 +151,7 @@ pub fn start_system_loopback(tx: SyncSender<AudioMessage>) -> Result<LoopbackCap
 
         SampleFormat::U16 => {
             let tx = tx.clone();
+            let stats = stats.clone();
 
             device.build_input_stream(
                 &config,
@@ -120,11 +161,16 @@ pub fn start_system_loopback(tx: SyncSender<AudioMessage>) -> Result<LoopbackCap
                         .map(|v| (*v as f32 - 32768.0) / 32768.0)
                         .collect();
 
-                    let _ = tx.try_send(AudioMessage::Block(AudioBlock {
-                        samples,
-                        channels,
-                        sample_rate,
-                    }));
+                    if tx
+                        .try_send(AudioMessage::Block(AudioBlock {
+                            samples,
+                            channels,
+                            sample_rate,
+                        }))
+                        .is_err()
+                    {
+                        stats.note_drop();
+                    }
                 },
                 err_fn,
                 None,
@@ -142,5 +188,6 @@ pub fn start_system_loopback(tx: SyncSender<AudioMessage>) -> Result<LoopbackCap
         stream,
         device_name: name,
         sample_rate,
+        stats,
     })
 }

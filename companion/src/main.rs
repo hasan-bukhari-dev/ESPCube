@@ -29,16 +29,27 @@ fn main() -> Result<()> {
         logging::write(&format!("[PANIC] {info}"));
     }));
 
+    let background = std::env::args().any(|arg| arg == "--background");
+    let loaded_settings = Settings::load().unwrap_or_default();
+
+    // Repair a stale Run-key path after upgrades/moves. This is intentionally
+    // done before single-instance acquisition so even a user-launched secondary
+    // process can repair startup to the currently installed executable.
+    if loaded_settings.start_with_windows {
+        if let Err(err) = autostart::set_enabled(true) {
+            logging::write(&format!("[AUTOSTART] repair failed: {err}"));
+        }
+    }
+
     let instance = single_instance::SingleInstance::acquire()?;
 
     if !instance.is_primary() {
+        logging::write("[INSTANCE] manual launch requested existing window");
         instance.request_show_existing();
         return Ok(());
     }
 
-    let background = std::env::args().any(|arg| arg == "--background");
-
-    let settings = Arc::new(RwLock::new(Settings::load().unwrap_or_default()));
+    let settings = Arc::new(RwLock::new(loaded_settings));
 
     let shared = Arc::new(RwLock::new(SharedState::new()));
 

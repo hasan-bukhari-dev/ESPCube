@@ -23,6 +23,7 @@ pub struct SharedState {
     pub speaker_detail: String,
     pub wifi_ssid: Option<String>,
     pub audio_device: Option<String>,
+    pub speaker_capture_drops: u64,
     pub last_error: Option<String>,
 }
 
@@ -42,6 +43,7 @@ impl SharedState {
             speaker_detail: "Waiting for Speaker profile".to_string(),
             wifi_ssid: None,
             audio_device: None,
+            speaker_capture_drops: 0,
             last_error: None,
         }
     }
@@ -87,6 +89,7 @@ impl SharedState {
         self.speaker_detail = "Waiting for Speaker profile".to_string();
         self.wifi_ssid = None;
         self.audio_device = None;
+        self.speaker_capture_drops = 0;
     }
 
     pub fn grace_remaining(&self) -> Option<Duration> {

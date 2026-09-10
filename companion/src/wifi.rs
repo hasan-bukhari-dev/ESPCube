@@ -5,6 +5,11 @@ use std::process::Command;
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrustedNetwork {
     pub ssid: String,
@@ -24,8 +29,17 @@ fn trusted_path() -> Result<PathBuf> {
         .join("trusted_wifi.json"))
 }
 
+fn hidden_command(program: &str) -> Command {
+    let mut command = Command::new(program);
+
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
+
+    command
+}
+
 pub fn current_windows_wifi_ssid() -> Result<String> {
-    let output = Command::new("netsh")
+    let output = hidden_command("netsh")
         .args(["wlan", "show", "interfaces"])
         .output()
         .context("Could not run 'netsh wlan show interfaces'")?;
@@ -82,19 +96,19 @@ fn load_all() -> Result<Vec<TrustedNetwork>> {
     Ok(out)
 }
 
-pub fn load_trusted_current_network() -> Result<TrustedNetwork> {
-    let current_ssid = current_windows_wifi_ssid()?;
-
+pub fn load_trusted_network_for_ssid(ssid: &str) -> Result<TrustedNetwork> {
     for net in load_all()? {
-        if net.ssid == current_ssid {
+        if net.ssid == ssid {
             return Ok(net);
         }
     }
 
-    bail!(
-        "Current Windows Wi-Fi '{}' is not trusted yet.",
-        current_ssid
-    )
+    bail!("Current Windows Wi-Fi '{}' is not trusted yet.", ssid)
+}
+
+pub fn load_trusted_current_network() -> Result<TrustedNetwork> {
+    let current_ssid = current_windows_wifi_ssid()?;
+    load_trusted_network_for_ssid(&current_ssid)
 }
 
 pub fn save_current_network(password: &str) -> Result<String> {
@@ -124,12 +138,14 @@ pub fn save_current_network(password: &str) -> Result<String> {
     let text = serde_json::to_string_pretty(&wrapped)?;
     fs::write(&path, text)?;
 
-    // Preserve compatibility with the existing trusted_wifi.json format
-    // while restricting the file to the current Windows user where possible.
+    // Best-effort Windows ACL hardening. The file already lives inside the
+    // current user's LocalAppData tree; failure here must never make Wi-Fi
+    // setup unusable.
+    #[cfg(target_os = "windows")]
     if let Ok(user) = std::env::var("USERNAME") {
         let grant = format!("{user}:(R,W)");
 
-        let _ = Command::new("icacls")
+        let _ = hidden_command("icacls")
             .arg(&path)
             .args(["/inheritance:r", "/grant:r", &grant])
             .output();
@@ -140,4 +156,18 @@ pub fn save_current_network(password: &str) -> Result<String> {
 
 pub fn trusted_current_ssid() -> Option<String> {
     load_trusted_current_network().ok().map(|n| n.ssid)
+}
+
+pub fn trusted_ssid(ssid: &str) -> bool {
+    load_trusted_network_for_ssid(ssid).is_ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hidden_flag_constant_matches_windows_create_no_window() {
+        assert_eq!(CREATE_NO_WINDOW, 0x08000000);
+    }
 }

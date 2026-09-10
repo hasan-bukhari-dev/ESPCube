@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::io::Write;
 use std::net::{IpAddr, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -21,6 +22,8 @@ const TCP_PORT: u16 = 47821;
 const OUT_RATE: usize = 32_000;
 const CHUNK_SAMPLES: usize = 320;
 const CHUNK_BYTES: usize = CHUNK_SAMPLES * 2;
+const CAPTURE_QUEUE_BLOCKS: usize = 192;
+const TRUST_RECHECK_INTERVAL: Duration = Duration::from_secs(2);
 
 pub struct SpeakerWorker {
     pub stop: Arc<AtomicBool>,
@@ -66,9 +69,18 @@ pub fn spawn(
                 if !stop_thread.load(Ordering::SeqCst) {
                     logging::write(&format!("[SPEAKER] {err:#}"));
 
-                    let mut s = shared.write();
-                    s.speaker_status = "Error".to_string();
-                    s.speaker_detail = err.to_string();
+                    {
+                        let mut s = shared.write();
+                        s.speaker_status = "Error".to_string();
+                        s.speaker_detail = err.to_string();
+                    }
+
+                    // Keep this worker alive until the Speaker profile exits.
+                    // Otherwise the BLE supervisor would immediately respawn
+                    // it on every 100 ms tick and create an error/log storm.
+                    while !stop_thread.load(Ordering::SeqCst) {
+                        thread::sleep(Duration::from_millis(250));
+                    }
                 }
             }
 
@@ -89,7 +101,7 @@ async fn run(
         bail!("Speaker profile is not READY.");
     }
 
-    let network = wifi::load_trusted_current_network()?;
+    let network = wait_for_trusted_network(&shared, &stop).await?;
 
     {
         let mut s = shared.write();
@@ -145,48 +157,37 @@ async fn run(
 
     let mut stream = connect_tcp_retry(ip, &stop).await?;
 
-    let (tx, rx) = mpsc::sync_channel::<AudioMessage>(8);
+    let (tx, rx) = mpsc::sync_channel::<AudioMessage>(CAPTURE_QUEUE_BLOCKS);
 
     let mut capture = audio::start_system_loopback(tx.clone())?;
 
     {
         let mut s = shared.write();
         s.speaker_status = "Streaming".to_string();
-        s.speaker_detail = "D2C9 â€¢ system audio mirror".to_string();
+        s.speaker_detail = "System audio mirror".to_string();
+        s.speaker_capture_drops = 0;
         s.audio_device = Some(capture.device_name.clone());
     }
 
     let mut dsp = SpeakerDsp::new(capture.sample_rate as usize, OUT_RATE);
 
-    let mut pending: Vec<i16> = Vec::with_capacity(CHUNK_SAMPLES * 4);
-
-    let mut last_status_check = Instant::now();
+    let mut pending: VecDeque<i16> = VecDeque::with_capacity(CHUNK_SAMPLES * 8);
 
     loop {
         if stop.load(Ordering::SeqCst) {
             break;
         }
 
-        if last_status_check.elapsed() >= Duration::from_millis(450) {
-            last_status_check = Instant::now();
-
-            match read_status(&peripheral, &status).await {
-                Ok(text) => {
-                    if status_field(&text, "state") != Some("READY") {
-                        break;
-                    }
-                }
-                Err(_) => {
-                    break;
-                }
-            }
-        }
-
         let message = match rx.recv_timeout(Duration::from_millis(100)) {
             Ok(v) => v,
-            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                shared.write().speaker_capture_drops = capture.stats.dropped_blocks();
+                continue;
+            }
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         };
+
+        shared.write().speaker_capture_drops = capture.stats.dropped_blocks();
 
         match message {
             AudioMessage::Error(err) => {
@@ -227,7 +228,8 @@ async fn run(
                 {
                     let mut s = shared.write();
                     s.speaker_status = "Streaming".to_string();
-                    s.speaker_detail = "D2C9 â€¢ system audio mirror".to_string();
+                    s.speaker_detail = "System audio mirror".to_string();
+                    s.speaker_capture_drops = capture.stats.dropped_blocks();
                     s.audio_device = Some(capture.device_name.clone());
                 }
             }
@@ -240,11 +242,10 @@ async fn run(
                 pending.extend(out);
 
                 while pending.len() >= CHUNK_SAMPLES {
-                    let chunk: Vec<i16> = pending.drain(..CHUNK_SAMPLES).collect();
-
                     let mut bytes = [0u8; CHUNK_BYTES];
 
-                    for (i, sample) in chunk.iter().enumerate() {
+                    for i in 0..CHUNK_SAMPLES {
+                        let sample = pending.pop_front().expect("PCM queue length checked");
                         let b = sample.to_le_bytes();
                         bytes[i * 2] = b[0];
                         bytes[i * 2 + 1] = b[1];
@@ -301,9 +302,53 @@ async fn run(
         s.speaker_detail = "Waiting for Speaker profile".to_string();
         s.audio_device = None;
         s.wifi_ssid = None;
+        s.speaker_capture_drops = 0;
     }
 
     Ok(())
+}
+
+async fn wait_for_trusted_network(
+    shared: &Arc<RwLock<SharedState>>,
+    stop: &AtomicBool,
+) -> Result<wifi::TrustedNetwork> {
+    let mut last_message = String::new();
+
+    loop {
+        if stop.load(Ordering::SeqCst) {
+            bail!("Speaker stopped.");
+        }
+
+        let current_ssid = wifi::current_windows_wifi_ssid();
+
+        let network = match current_ssid.as_deref() {
+            Ok(ssid) => wifi::load_trusted_network_for_ssid(ssid),
+            Err(err) => Err(anyhow::anyhow!(err.to_string())),
+        };
+
+        match network {
+            Ok(network) => return Ok(network),
+            Err(err) => {
+                let detail = err.to_string();
+
+                if detail != last_message {
+                    logging::write(&format!("[SPEAKER] waiting: {detail}"));
+                    last_message = detail.clone();
+                }
+
+                {
+                    let mut s = shared.write();
+                    s.speaker_status = "Waiting".to_string();
+                    s.speaker_detail = detail;
+                    s.wifi_ssid = current_ssid.ok();
+                    s.audio_device = None;
+                    s.speaker_capture_drops = 0;
+                }
+
+                tokio::time::sleep(TRUST_RECHECK_INTERVAL).await;
+            }
+        }
+    }
 }
 
 async fn provision(
